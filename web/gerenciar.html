@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gerenciar Arquivos - Lucenera</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles_gerenciar.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Header com Logo -->
+        <header class="header">
+            <div class="logo-container">
+                <img src="{{ url_for('static', filename='../logo.png') }}" alt="Lucenera Logo" class="logo" id="logo" onerror="this.style.display='none'">
+                <h1>LUCENERA - ATELIER DA LUZ</h1>
+            </div>
+            <p class="subtitle">Gerenciador de Arquivos</p>
+            <div class="header-nav">
+                <a href="/" class="nav-link">
+                    <i class="fas fa-upload"></i>
+                    Novo Upload
+                </a>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <div class="actions">
+                <button class="btn-novo" id="btnNovo">
+                    <i class="fas fa-plus"></i>
+                    Novo Orçamento
+                </button>
+                <button class="btn-reload" id="btnReload">
+                    <i class="fas fa-sync-alt"></i>
+                    Atualizar
+                </button>
+            </div>
+
+            <!-- Loading -->
+            <div class="loading" id="loading">
+                <div class="spinner"></div>
+                <p>Carregando arquivos...</p>
+            </div>
+
+            <!-- Lista de Arquivos -->
+            <div class="files-container" id="filesContainer" style="display: none;">
+                <h2>Arquivos Gerados</h2>
+                <div class="files-list" id="filesList">
+                    <!-- Arquivos serão inseridos aqui via JavaScript -->
+                </div>
+            </div>
+
+            <!-- Mensagem de vazio -->
+            <div class="empty-state" id="emptyState" style="display: none;">
+                <i class="fas fa-folder-open empty-icon"></i>
+                <h3>Nenhum arquivo encontrado</h3>
+                <p>Faça o upload de um orçamento para começar</p>
+                <button class="btn-upload" onclick="window.location.href='/'">
+                    <i class="fas fa-upload"></i>
+                    Fazer Upload
+                </button>
+            </div>
+
+            <!-- Erro -->
+            <div class="error-message" id="errorMessage" style="display: none;">
+                <i class="fas fa-exclamation-triangle"></i>
+                <p id="errorText">Erro ao carregar arquivos</p>
+            </div>
+        </main>
+
+        <!-- Footer -->
+        <footer class="footer">
+            <p>LUCENERA, Av. Nove de Julho 49, Ribeirão Preto (SP)</p>
+            <p><i class="fab fa-facebook"></i> www.facebook.com/luceneraatelier</p>
+        </footer>
+    </div>
+
+    <script src="{{ url_for('static', filename='gerenciar.js') }}"></script>
+</body>
+</html>

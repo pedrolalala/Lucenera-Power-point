@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Processando Orçamento - Lucenera</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles_status.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Header com Logo -->
+        <header class="header">
+            <div class="logo-container">
+                <img src="{{ url_for('static', filename='../logo.png') }}" alt="Lucenera Logo" class="logo" id="logo" onerror="this.style.display='none'">
+                <h1>LUCENERA - ATELIER DA LUZ</h1>
+            </div>
+            <p class="subtitle">Status do Processamento</p>
+            <div class="header-nav">
+                <a href="/" class="nav-link">
+                    <i class="fas fa-upload"></i>
+                    Novo Upload
+                </a>
+                <a href="/gerenciar" class="nav-link">
+                    <i class="fas fa-folder-open"></i>
+                    Gerenciar
+                </a>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <div class="status-section">
+                <!-- Informações do Arquivo -->
+                <div class="file-card">
+                    <i class="fas fa-file-pdf file-icon-large"></i>
+                    <h2 class="file-name-display" id="fileNameDisplay">-</h2>
+                    <p class="timestamp" id="timestamp">-</p>
+                </div>
+
+                <!-- Status Card -->
+                <div class="status-card" id="statusCard">
+                    <div class="status-header">
+                        <div class="status-icon" id="statusIcon">
+                            <i class="fas fa-clock"></i>
+                        </div>
+                        <div class="status-text">
+                            <h3 id="statusTitle">Aguardando</h3>
+                            <p id="statusDescription">Preparando processamento...</p>
+                        </div>
+                    </div>
+
+                    <!-- Barra de Progresso -->
+                    <div class="progress-container">
+                        <div class="progress-bar" id="progressBar">
+                            <div class="progress-fill" id="progressFill"></div>
+                        </div>
+                        <p class="progress-text" id="progressText">0%</p>
+                    </div>
+
+                    <!-- Etapas -->
+                    <div class="steps">
+                        <div class="step" id="step1">
+                            <div class="step-icon">
+                                <i class="fas fa-upload"></i>
+                            </div>
+                            <div class="step-content">
+                                <h4>Upload do PDF</h4>
+                                <p class="step-status">Aguardando...</p>
+                            </div>
+                        </div>
+
+                        <div class="step" id="step2">
+                            <div class="step-icon">
+                                <i class="fas fa-folder-open"></i>
+                            </div>
+                            <div class="step-content">
+                                <h4>Organização de Arquivos</h4>
+                                <p class="step-status">Aguardando...</p>
+                            </div>
+                        </div>
+
+                        <div class="step" id="step3">
+                            <div class="step-icon">
+                                <i class="fas fa-file-powerpoint"></i>
+                            </div>
+                            <div class="step-content">
+                                <h4>Geração do PowerPoint</h4>
+                                <p class="step-status">Aguardando...</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Mensagem de Erro -->
+                <div class="error-card" id="errorCard" style="display: none;">
+                    <i class="fas fa-exclamation-triangle error-icon"></i>
+                    <h3>Erro no Processamento</h3>
+                    <p class="error-message" id="errorMessage">-</p>
+                </div>
+
+                <!-- Botão de Download -->
+                <button class="btn-download" id="downloadBtn" style="display: none;">
+                    <i class="fas fa-download"></i>
+                    Baixar PowerPoint
+                </button>
+
+                <!-- Botão Voltar -->
+                <button class="btn-back" id="backBtn">
+                    <i class="fas fa-arrow-left"></i>
+                    Processar Novo Orçamento
+                </button>
+            </div>
+        </main>
+
+        <!-- Footer -->
+        <footer class="footer">
+            <p>LUCENERA, Av. Nove de Julho 49, Ribeirão Preto (SP)</p>
+            <p><i class="fab fa-facebook"></i> www.facebook.com/luceneraatelier</p>
+        </footer>
+    </div>
+
+    <script src="{{ url_for('static', filename='status.js') }}"></script>
+</body>
+</html>

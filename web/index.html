@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lucenera - Processamento de Orçamentos</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Header com Logo -->
+        <header class="header">
+            <div class="logo-container">
+                <img src="{{ url_for('static', filename='../logo.png') }}" alt="Lucenera Logo" class="logo" id="logo" onerror="this.style.display='none'">
+                <h1>LUCENERA - ATELIER DA LUZ</h1>
+            </div>
+            <p class="subtitle">Sistema de Processamento de Orçamentos</p>
+            <div class="header-nav">
+                <a href="/gerenciar" class="nav-link">
+                    <i class="fas fa-folder-open"></i>
+                    Gerenciar Arquivos
+                </a>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <div class="upload-section">
+                <h2>Upload de Orçamento em PDF</h2>
+                
+                <!-- Drag and Drop Area -->
+                <div class="drop-zone" id="dropZone">
+                    <div class="drop-zone-content">
+                        <i class="fas fa-cloud-upload-alt drop-icon"></i>
+                        <p class="drop-text">Arraste o PDF aqui ou clique para selecionar</p>
+                        <p class="drop-subtext">Formatos aceitos: PDF (máx. 10MB)</p>
+                    </div>
+                    <input type="file" id="fileInput" accept=".pdf" hidden>
+                </div>
+
+                <!-- File Info Display -->
+                <div class="file-info" id="fileInfo" style="display: none;">
+                    <div class="file-details">
+                        <i class="fas fa-file-pdf file-icon"></i>
+                        <div class="file-text">
+                            <p class="file-name" id="fileName">Nenhum arquivo selecionado</p>
+                            <p class="file-size" id="fileSize">0 KB</p>
+                        </div>
+                        <button class="remove-btn" id="removeBtn" title="Remover arquivo">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Process Button -->
+                <button class="btn-process" id="processBtn" disabled>
+                    <i class="fas fa-cog"></i>
+                    Processar Orçamento
+                </button>
+
+                <!-- Feedback Message -->
+                <div class="feedback" id="feedback" style="display: none;">
+                    <i class="fas fa-check-circle feedback-icon"></i>
+                    <p class="feedback-message" id="feedbackMessage"></p>
+                </div>
+
+                <!-- Loading Spinner -->
+                <div class="loading" id="loading" style="display: none;">
+                    <div class="spinner"></div>
+                    <p>Processando orçamento...</p>
+                </div>
+            </div>
+        </main>
+
+        <!-- Footer -->
+        <footer class="footer">
+            <p>LUCENERA, Av. Nove de Julho 49, Ribeirão Preto (SP)</p>
+            <p><i class="fab fa-facebook"></i> www.facebook.com/luceneraatelier</p>
+        </footer>
+    </div>
+
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>
