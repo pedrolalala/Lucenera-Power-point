@@ -1,103 +1,190 @@
-# 🚀 Sistema SharePoint Lucenera - PowerPoint Generator
+# 🚀 Sistema Lucenera - Gerador de Fichas Técnicas PowerPoint
 
-Sistema modernizado para geração de apresentações PowerPoint a partir de orçamentos XML integrado com Microsoft SharePoint via Graph API.
+Sistema automatizado para geração de apresentações PowerPoint com fichas técnicas integrado ao Microsoft SharePoint via Graph API.
 
-## ⭐ Características Principais
+## ⭐ Características
 
-- 🌐 **Integração SharePoint**: Busca automática de imagens e documentos técnicos
-- 📄 **Suporte XML/PDF**: Processa arquivos XML (novo) e PDFs (legado) 
-- 🤖 **Automação Total**: Geração de PPT sem intervenção manual
-- 💻 **Interface Web**: Upload via browser com interface moderna
-- 🏷️ **Multi-marcas**: Suporte automático para diferentes fabricantes
-- ⚡ **Performance**: Processamento em background com status em tempo real
+- 🌐 **Integração SharePoint**: Busca automática de fichas técnicas e bulas
+- 📄 **Dual Input**: Suporte a arquivos XML e PDF
+- 🤖 **100% Automático**: Geração de PPT sem intervenção manual
+- 💻 **Interface Web**: Upload via browser com tabs para XML/PDF
+- 🏷️ **Multi-formatos**: Suporta `.docx`, `.jpg`, `.png`, `.pdf` do SharePoint
+- 📋 **Bulas Separadas**: Detecta e cria slides dedicados para manuais/bulas
+- ⚡ **Background Processing**: Status em tempo real
+- 🔒 **HTTPS Público**: Deploy com Cloudflared
 
-## 📋 Pré-requisitos
+## 📋 Requisitos
 
 - Python 3.8+
-- Credenciais Microsoft Graph API configuradas
-- Acesso ao SharePoint Lucenera
-- Excel master com dados dos produtos
+- Microsoft Graph API (credenciais configuradas)
+- SharePoint Lucenera (acesso configurado)
+- Excel master: `C:\Users\pedro\OneDrive\Desktop\lucenera\master_produtos.xlsx`
 
-## 🚀 Instalação Rápida
+## 🚀 Instalação
 
-### 🎯 Opção 1: Setup Automático (RECOMENDADO)
-```bash
-python setup_completo.py
-```
-**Este script faz TUDO automaticamente:**
-- ✅ Instala dependências
-- ✅ Configura arquivo .env com credenciais reais
-- ✅ Cria Excel master template
-- ✅ Valida sistema completo
-- ✅ Opção de executar imediatamente
-
-### 🔧 Opção 2: Setup Manual
-
-#### 1. Instalar Dependências
+### 1. Instalar Dependências
 ```powershell
-# PowerShell (Windows)
 .\install_sharepoint_deps.ps1
 ```
 
-**OU** manualmente:
-```bash
-pip install -r requirements_sharepoint.txt
+### 2. Configurar Variáveis de Ambiente
+Editar `.env` (já configurado):
+```env
+TENANT_ID=seu_tenant_id
+CLIENT_ID=39ef469c-7496-40cb-ac08-ba01b514cf2d
+CLIENT_SECRET=seu_client_secret
 ```
 
-#### 2. Configurar Credenciais
-```bash
-# Testar se credenciais estão funcionando
-python test_env.py
-```
-**✅ Credenciais já estão configuradas no arquivo .env!**
+### 3. Iniciar Servidor
 
-#### 3. Configurar Excel Master
-```bash
-python criar_excel_template.py
-```
-- ✅ Cria template em `C:\Users\pedro\OneDrive\Desktop\lucenera\master_produtos.xlsx`
-- ✏️ Preencha com dados dos seus produtos
-- 💾 Salve o arquivo
-
-#### 4. Validar Sistema
-```bash
-python validacao_sistema.py
-```
-
-#### 5. Executar Sistema
+**Desenvolvimento (local):**
 ```bash
 python app.py
 ```
+Acesse: http://localhost:5001
 
-Acesse: **http://localhost:5001**
+**Produção (HTTPS público):**
+```powershell
+.\deploy_rapido.ps1
+```
+Acesse: https://sistema.apilucenera.site
 
-## 📁 Estrutura de Arquivos
+**Atalho Windows:**
+```
+start_lucenera.bat
+```
+
+## 📁 Estrutura do Projeto
 
 ```
-📦 Sistema SharePoint Lucenera
-├── 🐍 Código Principal
-│   ├── app.py                      # Servidor Flask web
-│   ├── ppt.py                      # Gerador de PowerPoint
-│   ├── sharepoint_client.py        # Cliente Microsoft Graph API
-│   └── data_manager.py             # Processamento XML/Excel
-├── 🌐 Interface Web
-│   └── web/
-│       ├── index.html              # Interface principal
-│       ├── script.js               # Lógica de upload
-│       └── styles.css              # CSS moderno
-├── 🔧 Configuração e Setup
-│   ├── requirements_sharepoint.txt # Dependências Python
-│   ├── install_sharepoint_deps.ps1 # Instalador Windows
-│   ├── criar_excel_template.py     # Gerador Excel master
-│   └── validacao_sistema.py        # Validação completa
-├── 📖 Documentação
-│   ├── README.md                   # Este arquivo
-│   ├── CHECKLIST_SISTEMA.md        # Lista de verificação
-│   ├── EXCEL_MASTER_README.md      # Documentação Excel
-│   └── exemplo_orcamento.xml       # Exemplo de XML
-└── 🧪 Testes
-    └── test_system.py              # Testes automatizados
+├── app.py                    # Servidor Flask (desenvolvimento)
+├── app_production.py         # Servidor Flask (produção)
+├── ppt.py                    # Geração de PowerPoint
+├── sharepoint_client.py      # Cliente Microsoft Graph API
+├── data_manager.py           # Processamento XML/Excel
+├── pdf_parser.py             # Parser PDF (modo legado)
+├── reference_extractor.py    # Extração de referências
+├── web/                      # Interface web
+│   ├── index.html           # UI principal (tabs XML/PDF)
+│   ├── script.js            # Lógica frontend
+│   └── styles.css           # Estilos
+├── requirements_sharepoint.txt
+├── requirements_web.txt
+├── deploy_rapido.ps1         # Script de deploy
+├── start_lucenera.bat        # Atalho de inicialização
+└── README.md                 # Este arquivo
 ```
+
+## 🎯 Como Usar
+
+### 1. XML (Recomendado)
+1. Acesse o sistema (local ou HTTPS)
+2. Clique na aba **"XML (Novo - SharePoint)"**
+3. Arraste ou selecione arquivo XML do orçamento
+4. Clique em **"Processar XML"**
+5. Aguarde processamento (barra de progresso)
+6. Download automático do PPT gerado
+
+### 2. PDF (Modo Legado)
+1. Clique na aba **"PDF (SharePoint)"**
+2. Arraste ou selecione arquivo PDF do orçamento
+3. Clique em **"Processar PDF"**
+4. Aguarde processamento
+5. Download automático do PPT gerado
+
+## 📊 Estrutura SharePoint
+
+**Pasta fixa:**
+```
+LUCENERA PROJETOS/Fichas Técnicas/Ficha técnica processada/Ficha Técnica Renomeado/
+```
+
+**Nomenclatura de arquivos:**
+- Fichas: `13133.docx` (código interno)
+- Bulas: `13133_BULA.jpg` ou `13133_MANUAL.pdf`
+- Imagens: `13133.png` ou `13133_FOTO.jpg`
+
+**Formatos suportados:**
+- `.docx` - Fichas técnicas
+- `.jpg`, `.png` - Imagens de produto
+- `.pdf` - Manuais técnicos
+
+## 🔍 Sistema de Bulas
+
+O sistema detecta automaticamente bulas/manuais por keywords:
+- `bula`, `manual`, `instruction`, `guide`, `info`
+
+**Comportamento:**
+- Bulas são criadas em **slides separados** (não misturam com ficha técnica)
+- Cada bula ocupa um slide completo
+- Mantém número LXX no canto superior direito
+
+## 🏢 Excel Master
+
+**Localização:** `C:\Users\pedro\OneDrive\Desktop\lucenera\master_produtos.xlsx`
+
+**Colunas obrigatórias:**
+- `codigo` - Código interno do produto
+- `ref` - Referência do fabricante
+- `marca` - Nome da marca
+- `nome` - Nome do produto
+- `categoria` - Categoria
+- `potencia` - Potência (ex: "12W")
+
+## 🌐 Deploy HTTPS
+
+Sistema configurado com Cloudflared para acesso público:
+
+**URL Pública:** https://sistema.apilucenera.site
+
+**Deploy automático:**
+```powershell
+.\deploy_rapido.ps1
+```
+
+O script verifica:
+- ✅ Cloudflared ativo
+- ✅ Porta 5001 disponível
+- ✅ Arquivos essenciais
+- ✅ Excel master
+- ✅ Servidor Flask
+
+
+## 🐛 Troubleshooting
+
+**Erro de autenticação SharePoint:**
+- Verifique variáveis `.env`
+- Teste credenciais com Microsoft Graph Explorer
+
+**Arquivos não encontrados no SharePoint:**
+- Verifique nomenclatura (código interno exato)
+- Confirme pasta configurada em `sharepoint_client.py`
+
+**PowerPoint vazio ou incompleto:**
+- Verifique Excel master preenchido
+- Confirme códigos no XML correspondem ao Excel
+
+**Site HTTPS não acessível:**
+- Execute `deploy_rapido.ps1`
+- Verifique Cloudflared: `Get-Process cloudflared`
+- Reinicie: `cloudflared service uninstall` + `cloudflared service install`
+
+## 📝 Notas Técnicas
+
+- **Encoding:** Sistema usa UTF-8, logs sem emojis (compatibilidade Windows cp1252)
+- **Cache:** Interface pode precisar Ctrl+Shift+R após atualizações
+- **Performance:** ~1-2s por produto (busca SharePoint + download)
+- **Logs:** Pasta `logs/` com rotação automática (10MB, 5 backups)
+
+## 📄 Licença
+
+Sistema proprietário - Lucenera Ltda.
+
+---
+
+**Versão:** 2.0-production  
+**Última atualização:** Abril 2026  
+**Desenvolvido para:** Lucenera - Atelier da Luz
 
 ## 🌐 SharePoint - Estrutura Necessária
 

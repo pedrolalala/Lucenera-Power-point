@@ -603,5 +603,5 @@ if __name__ == "__main__":
         <item linha="44" codigo="10539" ref="3649-FE-S-PX" preco="872.00" quantidade="30"/>
     </orcamento>"""
     
-    print("📋 Estrutura XML esperada:")
+    print("[XML] Estrutura XML esperada:")
     print(xml_exemplo)

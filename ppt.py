@@ -207,23 +207,25 @@ def criar_slides_produto(prs, produto, sp_client):
     
     print(f"  [PROC] Processando produto {lnum}: {marca} - Código: {codigo}")
     
-    print(f"  [BUSCA_CODIGO] Buscando arquivos .docx no SharePoint por código interno: {codigo}")
+    print(f"  [BUSCA_CODIGO] Buscando arquivos no SharePoint por código interno: {codigo}")
     
-    # Buscar arquivos no SharePoint pelo CÓDIGO INTERNO
+    # Buscar arquivos no SharePoint pelo CÓDIGO INTERNO (docx/jpg/png/pdf)
     arquivos = sp_client.search_files_by_code(codigo)
     
     if not arquivos:
         print(f"  [AVISO] Nenhum arquivo .docx encontrado para código {codigo}")
     else:
-        print(f"  [OK] {len(arquivos)} arquivo(s) .docx encontrado(s)")
+        print(f"  [OK] {len(arquivos)} arquivo(s) encontrado(s)")
         # Mostrar detalhes dos matches para debug
         for i, arq in enumerate(arquivos[:3]):  # Primeiro 3 apenas
-            print(f"    [{i+1}] {arq['name']} (score: {arq.get('score', 0)}, método: {arq.get('match_method', 'N/A')})")
+            print(f"    [{i+1}] {arq['name']} (tipo: {arq.get('type', 'N/A')}, is_bula: {arq.get('is_bula', False)}, score: {arq.get('score', 0)})")
     
-    # Todos os arquivos retornados são .docx (Word) desde o novo método
-    word_files = arquivos  # Todos são Word files agora
-    image_files = []  # Não há imagens na busca .docx
+    # Separar arquivos por tipo: fichas vs bulas
     bula_files = [arq for arq in arquivos if arq.get('is_bula', False)]
+    word_files = [arq for arq in arquivos if not arq.get('is_bula', False) and arq.get('type') == 'word']
+    image_files = [arq for arq in arquivos if not arq.get('is_bula', False) and arq.get('type') == 'image']
+    
+    print(f"  [SEPARACAO] {len(word_files)} ficha(s), {len(image_files)} imagem(ns), {len(bula_files)} bula(s)")
     
     # Criar slide de ficha técnica
     slide_ficha = prs.slides.add_slide(prs.slide_layouts[6])
@@ -264,7 +266,7 @@ def criar_slides_produto(prs, produto, sp_client):
     
     # Criar slide de bula se disponível
     if bula_files:
-        print(f"  📋 Criando slide de bula...")
+        print(f"  [BULA] Criando slide de bula...")
         criar_slide_bula(prs, bula_files[0], lnum, sp_client)
 
 
@@ -436,15 +438,21 @@ def criar_slide_bula(prs, bula_file, lnum, sp_client):
         tf_lnum_bula.paragraphs[0].font.color.rgb = RGBColor(0, 0, 0)
         tf_lnum_bula.paragraphs[0].alignment = PP_ALIGN.RIGHT
         
+        # Detectar extensão do arquivo de bula
+        nome_bula = bula_file.get('name', '')
+        extensao = os.path.splitext(nome_bula)[1].lower()
+        if extensao not in ['.jpg', '.jpeg', '.png', '.pdf']:
+            extensao = '.png'  # Fallback
+        
         # Baixar e adicionar imagem da bula
         img_content = sp_client.download_file_content(bula_file['download_url'])
         
-        with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as temp_img:
+        with tempfile.NamedTemporaryFile(suffix=extensao, delete=False) as temp_img:
             temp_img.write(img_content)
             temp_path = temp_img.name
         
         try:
-            slide_bula.shapes.add_picture(temp_path, Inches(0.5), Inches(1.0), width=Inches(7.2), height=Inches(9.5))
+            slide_bula.shapes.add_picture(temp_path, Inches(0.5), Inches(1.0), width=Inches(7.2))
         finally:
             os.unlink(temp_path)
             

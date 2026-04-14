@@ -199,18 +199,20 @@ class SharePointClient:
                 self.logger.error(f"❌ Erro ao carregar pasta SharePoint: {str(e)}")
                 return []
             
-            # 3. Filtrar apenas arquivos .docx
-            arquivos_docx = []
+            # 3. Filtrar arquivos relevantes (.docx para fichas, .jpg/.png/.pdf para bulas)
+            EXTENSOES_VALIDAS = ['.docx', '.jpg', '.jpeg', '.png', '.pdf']
+            arquivos_relevantes = []
             for item in result.get("value", []):
                 nome = item.get("name", "")
-                if nome.lower().endswith('.docx'):
-                    arquivos_docx.append(item)
+                nome_lower = nome.lower()
+                if any(nome_lower.endswith(ext) for ext in EXTENSOES_VALIDAS):
+                    arquivos_relevantes.append(item)
             
-            self.logger.info(f"📄 {len(arquivos_docx)} arquivo(s) .docx encontrados na pasta")
+            self.logger.info(f"📄 {len(arquivos_relevantes)} arquivo(s) encontrados na pasta (docx/jpg/png/pdf)")
             
             # 4. Buscar match por código interno
             arquivos_encontrados = []
-            for item in arquivos_docx:
+            for item in arquivos_relevantes:
                 nome = item.get("name", "")
                 nome_sem_ext = nome.rsplit('.', 1)[0]  # Remove .docx
                 
@@ -226,7 +228,7 @@ class SharePointClient:
                         'size': item.get('size', 0),
                         'last_modified': item.get('lastModifiedDateTime'),
                         'company_folder': self.PASTA_FICHAS_UNICA,
-                        'type': 'word',
+                        'type': self._detectar_tipo_arquivo(nome),
                         'is_bula': self._is_bula_file(nome)
                     }
                     
@@ -245,7 +247,7 @@ class SharePointClient:
                         'size': item.get('size', 0),
                         'last_modified': item.get('lastModifiedDateTime'),
                         'company_folder': self.PASTA_FICHAS_UNICA,
-                        'type': 'word',
+                        'type': self._detectar_tipo_arquivo(nome),
                         'is_bula': self._is_bula_file(nome)
                     }
                     
@@ -265,6 +267,25 @@ class SharePointClient:
         except Exception as e:
             self.logger.error(f"💥 Erro geral na busca: {str(e)}")
             return []
+    
+    def _detectar_tipo_arquivo(self, nome: str) -> str:
+        """
+        Detecta o tipo de arquivo pela extensão
+        
+        Args:
+            nome: Nome do arquivo
+            
+        Returns:
+            'word', 'image' ou 'pdf'
+        """
+        nome_lower = nome.lower()
+        if nome_lower.endswith('.docx'):
+            return 'word'
+        elif nome_lower.endswith(('.jpg', '.jpeg', '.png')):
+            return 'image'
+        elif nome_lower.endswith('.pdf'):
+            return 'pdf'
+        return 'unknown'
     
     def _is_bula_file(self, nome: str) -> bool:
         """
