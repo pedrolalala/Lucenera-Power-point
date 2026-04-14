@@ -9,12 +9,48 @@ const processBtn = document.getElementById('processBtn');
 const feedback = document.getElementById('feedback');
 const feedbackMessage = document.getElementById('feedbackMessage');
 const loading = document.getElementById('loading');
+const loadingMessage = document.getElementById('loadingMessage');
+
+// Elementos das abas
+const tabButtons = document.querySelectorAll('.tab-button');
+const tabContents = document.querySelectorAll('.tab-content');
 
 let selectedFile = null;
+let currentTab = 'xml'; // Aba padrão é XML
 
+// ===== SISTEMA DE ABAS =====
+tabButtons.forEach(button => {
+    button.addEventListener('click', () => {
+        const tabId = button.dataset.tab;
+        switchTab(tabId);
+    });
+});
+
+function switchTab(tabId) {
+    currentTab = tabId;
+    
+    // Atualizar botões das abas
+    tabButtons.forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.tab === tabId);
+    });
+    
+    // Atualizar conteúdo das abas
+    tabContents.forEach(content => {
+        content.classList.toggle('active', content.id === `tab-${tabId}`);
+    });
+    
+    // Reset do arquivo quando troca aba
+    removeFile();
+    
+    console.log(`Aba ativa: ${tabId}`);
+}
+
+// ===== DRAG & DROP =====
 // Click na drop zone abre seletor de arquivo
 dropZone.addEventListener('click', () => {
-    fileInput.click();
+    if (currentTab === 'xml') {
+        fileInput.click();
+    }
 });
 
 // Prevenir comportamento padrão do drag
@@ -52,7 +88,7 @@ function handleDrop(e) {
     const dt = e.dataTransfer;
     const files = dt.files;
     
-    if (files.length > 0) {
+    if (files.length > 0 && currentTab === 'xml') {
         handleFile(files[0]);
     }
 }
@@ -66,14 +102,24 @@ fileInput.addEventListener('change', (e) => {
 
 // Processar arquivo selecionado
 function handleFile(file) {
-    // Validar tipo de arquivo
-    if (file.type !== 'application/pdf') {
-        showFeedback('error', 'Por favor, selecione apenas arquivos PDF.');
+    // Validar tipo baseado na aba ativa
+    if (currentTab === 'xml') {
+        // Validar XML
+        if (!file.name.toLowerCase().endsWith('.xml')) {
+            showFeedback('error', 'Por favor, selecione apenas arquivos XML.');
+            return;
+        }
+        
+        // Atualizar mensagem de loading
+        loadingMessage.textContent = 'Processando XML com SharePoint...';
+    } else if (currentTab === 'pdf') {
+        // Sistema PDF desabilitado
+        showFeedback('error', 'Sistema PDF está temporariamente desabilitado. Use XML.');
         return;
     }
 
     // Validar tamanho (10MB)
-    const maxSize = 10 * 1024 * 1024; // 10MB em bytes
+    const maxSize = 10 * 1024 * 1024;
     if (file.size > maxSize) {
         showFeedback('error', 'O arquivo é muito grande. Tamanho máximo: 10MB.');
         return;
@@ -91,6 +137,8 @@ function handleFile(file) {
     
     // Ocultar feedback anterior
     feedback.style.display = 'none';
+    
+    console.log(`Arquivo ${currentTab.toUpperCase()} selecionado:`, file.name);
 }
 
 // Formatar tamanho do arquivo
@@ -122,14 +170,29 @@ function removeFile() {
 processBtn.addEventListener('click', async () => {
     if (!selectedFile) return;
 
-    // Mostrar loading
+    // Verificar se sistema está habilitado
+    if (currentTab === 'pdf') {
+        showFeedback('error', 'Sistema PDF está desabilitado. Use XML.');
+        return;
+    }
+
+    // Mostrar loading com mensagem específica
     loading.style.display = 'block';
     processBtn.disabled = true;
     feedback.style.display = 'none';
 
-    // Criar FormData
+    if (currentTab === 'xml') {
+        loadingMessage.textContent = 'Conectando ao SharePoint...';
+    }
+
+    // Criar FormData com campo apropriado
     const formData = new FormData();
-    formData.append('pdf_file', selectedFile);
+    
+    if (currentTab === 'xml') {
+        formData.append('xml_file', selectedFile);
+    } else {
+        formData.append('pdf_file', selectedFile);
+    }
 
     try {
         // Enviar para o servidor
@@ -141,16 +204,27 @@ processBtn.addEventListener('click', async () => {
         const result = await response.json();
 
         if (response.ok && result.success && result.job_id) {
+            // Mensagem específica do sistema
+            const systemType = result.file_type || currentTab;
+            
             // Redirecionar para página de status
-            window.location.href = `/status.html?job=${result.job_id}&filename=${encodeURIComponent(selectedFile.name)}`;
+            const redirectUrl = `/status.html?job=${result.job_id}&filename=${encodeURIComponent(selectedFile.name)}&type=${systemType}`;
+            window.location.href = redirectUrl;
         } else {
             loading.style.display = 'none';
             showFeedback('error', result.error || 'Erro ao processar orçamento. Tente novamente.');
             processBtn.disabled = false;
         }
+
     } catch (error) {
         loading.style.display = 'none';
-        showFeedback('error', 'Erro de conexão com o servidor. Verifique se o servidor está rodando.');
+        
+        let errorMessage = 'Erro de conexão com o servidor.';
+        if (currentTab === 'xml') {
+            errorMessage += ' Verifique conectividade com SharePoint.';
+        }
+        
+        showFeedback('error', errorMessage);
         processBtn.disabled = false;
         console.error('Erro:', error);
     }

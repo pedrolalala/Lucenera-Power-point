@@ -27,37 +27,84 @@
         <!-- Main Content -->
         <main class="main-content">
             <div class="upload-section">
-                <h2>Upload de Orçamento em PDF</h2>
+                <!-- Tabs para tipo de arquivo -->
+                <div class="tabs-container">
+                    <button class="tab-button active" data-tab="xml">
+                        <i class="fas fa-code"></i>
+                        XML (Novo - SharePoint)
+                    </button>
+                    <button class="tab-button" data-tab="pdf">
+                        <i class="fas fa-file-pdf"></i>
+                        PDF (Legado)
+                    </button>
+                </div>
                 
-                <!-- Drag and Drop Area -->
-                <div class="drop-zone" id="dropZone">
-                    <div class="drop-zone-content">
-                        <i class="fas fa-cloud-upload-alt drop-icon"></i>
-                        <p class="drop-text">Arraste o PDF aqui ou clique para selecionar</p>
-                        <p class="drop-subtext">Formatos aceitos: PDF (máx. 10MB)</p>
-                    </div>
-                    <input type="file" id="fileInput" accept=".pdf" hidden>
-                </div>
-
-                <!-- File Info Display -->
-                <div class="file-info" id="fileInfo" style="display: none;">
-                    <div class="file-details">
-                        <i class="fas fa-file-pdf file-icon"></i>
-                        <div class="file-text">
-                            <p class="file-name" id="fileName">Nenhum arquivo selecionado</p>
-                            <p class="file-size" id="fileSize">0 KB</p>
+                <!-- Tab Content XML -->
+                <div class="tab-content active" id="tab-xml">
+                    <h2>Upload de Orçamento em XML</h2>
+                    <div class="system-info">
+                        <div class="info-badge info-new">
+                            <i class="fas fa-star"></i>
+                            NOVO SISTEMA
                         </div>
-                        <button class="remove-btn" id="removeBtn" title="Remover arquivo">
-                            <i class="fas fa-times"></i>
-                        </button>
+                        <p>✅ Conecta diretamente ao SharePoint</p>
+                        <p>✅ Consulta Excel master automaticamente</p>
+                        <p>✅ Suporta múltiplas marcas</p>
+                    </div>
+                    
+                    <!-- Drag and Drop Area XML -->
+                    <div class="drop-zone" id="dropZone">
+                        <div class="drop-zone-content">
+                            <i class="fas fa-cloud-upload-alt drop-icon"></i>
+                            <p class="drop-text">Arraste o XML aqui ou clique para selecionar</p>
+                            <p class="drop-subtext">Formatos aceitos: XML (máx. 10MB)</p>
+                        </div>
+                        <input type="file" id="fileInput" accept=".xml" hidden>
+                    </div>
+
+                    <!-- File Info Display XML -->
+                    <div class="file-info" id="fileInfo" style="display: none;">
+                        <div class="file-details">
+                            <i class="fas fa-code file-icon"></i>
+                            <div class="file-text">
+                                <p class="file-name" id="fileName">Nenhum arquivo selecionado</p>
+                                <p class="file-size" id="fileSize">0 KB</p>
+                            </div>
+                            <button class="remove-btn" id="removeBtn" title="Remover arquivo">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Process Button XML -->
+                    <button class="btn-process btn-new" id="processBtn" disabled>
+                        <i class="fas fa-SharePoint"></i>
+                        Processar com SharePoint
+                    </button>
+                </div>
+                
+                <!-- Tab Content PDF -->
+                <div class="tab-content" id="tab-pdf" style="display: none;">
+                    <h2>Upload de Orçamento em PDF</h2>
+                    <div class="system-info">
+                        <div class="info-badge info-legacy">
+                            <i class="fas fa-archive"></i>
+                            SISTEMA LEGADO
+                        </div>
+                        <p>⚠️ Sistema antigo (descontinuado)</p>
+                        <p>📁 Usa arquivos locais</p>
+                        <p>🔄 Migre para XML + SharePoint</p>
+                    </div>
+                    
+                    <!-- Drag and Drop Area PDF -->
+                    <div class="drop-zone drop-zone-disabled">
+                        <div class="drop-zone-content">
+                            <i class="fas fa-file-pdf drop-icon"></i>
+                            <p class="drop-text">Sistema PDF temporariamente desabilitado</p>
+                            <p class="drop-subtext">Use o sistema XML para processamento</p>
+                        </div>
                     </div>
                 </div>
-
-                <!-- Process Button -->
-                <button class="btn-process" id="processBtn" disabled>
-                    <i class="fas fa-cog"></i>
-                    Processar Orçamento
-                </button>
 
                 <!-- Feedback Message -->
                 <div class="feedback" id="feedback" style="display: none;">
@@ -68,7 +115,7 @@
                 <!-- Loading Spinner -->
                 <div class="loading" id="loading" style="display: none;">
                     <div class="spinner"></div>
-                    <p>Processando orçamento...</p>
+                    <p id="loadingMessage">Processando orçamento...</p>
                 </div>
             </div>
         </main>

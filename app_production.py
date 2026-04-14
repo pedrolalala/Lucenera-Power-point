@@ -1,14 +1,6 @@
 """
 Sistema de Geração de PowerPoint - LUCENERA
-Versão DESENVOLVIMENTO (com debug ativado)
-
-⚠️ PARA PRODUÇÃO: Use app_production.py
-   - Logging com rotação
-   - Health check endpoint
-   - Modo produção (sem debug)
-   - Configuração via .env
-
-📖 Ver DEPLOY_README.md para instruções de deploy
+Versão PRODUÇÃO com Cloudflared
 """
 
 from flask import Flask, render_template, request, jsonify, send_file
@@ -20,34 +12,116 @@ from datetime import datetime
 import threading
 import uuid
 import re
+import logging
+from logging.handlers import RotatingFileHandler
+from dotenv import load_dotenv
+
+# Carregar variáveis de ambiente
+load_dotenv()
 
 app = Flask(__name__, 
             static_folder='web',
             template_folder='web')
 
-# Configurações
-UPLOAD_FOLDER = r'C:\Users\pedro\OneDrive\Desktop\lucenera'
-ALLOWED_EXTENSIONS = {'pdf', 'xml'}  # Suporte para PDF e XML
+# ==================== CONFIGURAÇÕES ====================
+# Usar variáveis de ambiente com fallback para valores padrão
+
+UPLOAD_FOLDER = os.getenv('UPLOAD_FOLDER', r'C:\Users\pedro\OneDrive\Desktop\lucenera')
+SCRIPT_DIR = os.getenv('SCRIPT_DIR', r'C:\script python\script python power point')
+EXCEL_MASTER = os.getenv('EXCEL_MASTER', r'C:\Users\pedro\OneDrive\Desktop\lucenera\master_produtos.xlsx')
+PYTHON_VENV = os.getenv('PYTHON_VENV', os.path.join(SCRIPT_DIR, '.venv', 'Scripts', 'python.exe'))
+
+ALLOWED_EXTENSIONS = {'pdf', 'xml'}
 MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
+PORT = int(os.getenv('PORT', '5001'))
 
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['MAX_CONTENT_LENGTH'] = MAX_FILE_SIZE
 
-# Caminho dos scripts
-SCRIPT_DIR = r'C:\script python\script python power point'
-MAIN_PY = os.path.join(SCRIPT_DIR, 'main.py')
-PPT_PY = os.path.join(SCRIPT_DIR, 'ppt.py')  # Novo sistema SharePoint
-EXCEL_MASTER = r'C:\Users\pedro\OneDrive\Desktop\lucenera\master_produtos.xlsx'  # Caminho do Excel master
-PYTHON_VENV = os.path.join(SCRIPT_DIR, '.venv', 'Scripts', 'python.exe')
+# ==================== LOGGING ====================
+def setup_logging():
+    """Configurar logging para produção"""
+    
+    # Criar pasta de logs se não existir
+    log_dir = os.path.join(SCRIPT_DIR, 'logs')
+    os.makedirs(log_dir, exist_ok=True)
+    
+    # Arquivo de log com rotação
+    log_file = os.path.join(log_dir, 'app.log')
+    
+    # Handler com rotação (max 10MB, manter 5 arquivos)
+    file_handler = RotatingFileHandler(
+        log_file, 
+        maxBytes=10*1024*1024, 
+        backupCount=5,
+        encoding='utf-8'
+    )
+    
+    # Formato do log
+    formatter = logging.Formatter(
+        '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S'
+    )
+    file_handler.setFormatter(formatter)
+    
+    # Console handler
+    console_handler = logging.StreamHandler()
+    console_handler.setFormatter(formatter)
+    
+    # Configurar logger da aplicação
+    app.logger.setLevel(logging.INFO)
+    app.logger.addHandler(file_handler)
+    app.logger.addHandler(console_handler)
+    
+    # Configurar logger do werkzeug (Flask)
+    werkzeug_logger = logging.getLogger('werkzeug')
+    werkzeug_logger.setLevel(logging.INFO)
+    werkzeug_logger.addHandler(file_handler)
 
-# Armazenar status dos jobs em memória
+# Inicializar logging
+setup_logging()
+
+# ==================== ARMAZENAMENTO DE JOBS ====================
 jobs = {}
 
+# ==================== FUNÇÕES AUXILIARES ====================
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
+# ==================== ROTAS ====================
+
+@app.route('/health')
+def health_check():
+    """Health check para monitoramento"""
+    try:
+        # Verificar se arquivos críticos existem
+        checks = {
+            'upload_folder': os.path.exists(UPLOAD_FOLDER),
+            'excel_master': os.path.exists(EXCEL_MASTER),
+            'python_venv': os.path.exists(PYTHON_VENV),
+            'script_dir': os.path.exists(SCRIPT_DIR)
+        }
+        
+        all_ok = all(checks.values())
+        
+        return jsonify({
+            'status': 'healthy' if all_ok else 'degraded',
+            'timestamp': datetime.now().isoformat(),
+            'checks': checks,
+            'active_jobs': len(jobs),
+            'version': '2.0-production'
+        }), 200 if all_ok else 503
+        
+    except Exception as e:
+        app.logger.error(f"Health check failed: {str(e)}")
+        return jsonify({
+            'status': 'unhealthy',
+            'error': str(e)
+        }), 503
+
 @app.route('/')
 def index():
+    app.logger.info("Página inicial acessada")
     return render_template('index.html')
 
 @app.route('/status.html')
@@ -65,13 +139,11 @@ def listar_arquivos():
     try:
         arquivos = []
         
-        # Listar todos os arquivos .pptx na pasta
         for filename in os.listdir(UPLOAD_FOLDER):
             if filename.endswith('.pptx') and filename.startswith('orcamento_'):
                 file_path = os.path.join(UPLOAD_FOLDER, filename)
                 file_stat = os.stat(file_path)
                 
-                # Extrair timestamp do nome do arquivo se possível
                 timestamp_match = re.search(r'orcamento_(\d{8}_\d{6})\.pptx', filename)
                 timestamp_str = timestamp_match.group(1) if timestamp_match else 'desconhecido'
                 
@@ -83,18 +155,17 @@ def listar_arquivos():
                     'download_url': f'/download_file/{filename}'
                 })
         
-        # Ordenar por data de modificação (mais recente primeiro)
         arquivos.sort(key=lambda x: x['modified'], reverse=True)
         
         return jsonify({'success': True, 'arquivos': arquivos})
     
     except Exception as e:
+        app.logger.error(f"Erro ao listar arquivos: {str(e)}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/processar', methods=['POST'])
 def processar_orcamento():
     try:
-        # Verificar se arquivo foi enviado (PDF ou XML)
         file_key = 'pdf_file' if 'pdf_file' in request.files else 'xml_file'
         
         if file_key not in request.files:
@@ -108,23 +179,18 @@ def processar_orcamento():
         if not allowed_file(file.filename):
             return jsonify({'success': False, 'error': 'Tipo de arquivo não permitido. Use PDF ou XML'}), 400
         
-        # Determinar tipo de arquivo
         file_type = 'xml' if file.filename.lower().endswith('.xml') else 'pdf'
-        
-        # Gerar ID único para o job
         job_id = str(uuid.uuid4())
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         
-        # Salvar arquivo
         filename = secure_filename(file.filename)
         file_extension = 'xml' if file_type == 'xml' else 'pdf'
         saved_filename = f'orcamento_{timestamp}.{file_extension}'
         file_path = os.path.join(UPLOAD_FOLDER, saved_filename)
         
         file.save(file_path)
-        print(f"[OK] {file_type.upper()} salvo: {file_path}")
+        app.logger.info(f"[{job_id}] Arquivo {file_type.upper()} recebido: {filename}")
         
-        # Criar registro do job
         jobs[job_id] = {
             'status': 'uploading',
             'progress': 10,
@@ -136,7 +202,6 @@ def processar_orcamento():
             'error': None
         }
         
-        # Iniciar processamento em background
         if file_type == 'xml':
             thread = threading.Thread(target=process_xml_job, args=(job_id, file_path, timestamp))
         else:
@@ -153,36 +218,28 @@ def processar_orcamento():
         })
     
     except Exception as e:
-        print(f"[ERRO] Erro geral: {str(e)}")
+        app.logger.error(f"Erro no processamento: {str(e)}", exc_info=True)
         return jsonify({
             'success': False,
             'error': f'Erro interno do servidor: {str(e)}'
         }), 500
 
 def process_xml_job(job_id, xml_path, timestamp):
-    """Processar job XML usando SharePoint (novo sistema)"""
+    """Processar job XML usando SharePoint"""
     try:
-        print(f"[INICIO] [{job_id}] Iniciando processamento XML com SharePoint...")
+        app.logger.info(f"[{job_id}] Iniciando processamento XML")
         
-        # Atualizar status: processando
         jobs[job_id]['status'] = 'processing'
         jobs[job_id]['progress'] = 30
         
-        # Verificar se Excel master existe
         if not os.path.exists(EXCEL_MASTER):
             raise Exception(f'Excel master não encontrado: {EXCEL_MASTER}')
         
-        # Atualizar status: gerando PPT
         jobs[job_id]['status'] = 'generating'
         jobs[job_id]['progress'] = 60
         
-        # Preparar argumentos para o ppt.py
         output_ppt = os.path.join(UPLOAD_FOLDER, f'orcamento_{timestamp}.pptx')
         
-        # Executar ppt.py com argumentos
-        print(f"[EXEC] [{job_id}] Executando ppt.py (SharePoint)...")
-        
-        # Criar script wrapper temporário com parâmetros
         wrapper_script = f"""
 import sys
 sys.path.append(r'{SCRIPT_DIR}')
@@ -206,60 +263,46 @@ except Exception as e:
             f.write(wrapper_script)
         
         try:
-            # Executar wrapper
             result = subprocess.run(
                 [PYTHON_VENV, wrapper_path],
                 capture_output=True,
                 text=True,
                 cwd=SCRIPT_DIR,
-                timeout=300  # 5 minutos timeout
+                timeout=300
             )
             
             if result.returncode != 0:
                 raise Exception(f'Erro na geração PPT: {result.stderr}')
             
-            print(f"[OK] [{job_id}] ppt.py executado com sucesso")
-            print(f"[OUTPUT] Output: {result.stdout}")
+            app.logger.info(f"[{job_id}] PPT gerado com sucesso")
             
         finally:
-            # Remover wrapper temporário
             if os.path.exists(wrapper_path):
                 os.remove(wrapper_path)
         
-        # Verificar se PPT foi gerado
         if not os.path.exists(output_ppt):
             raise Exception('PPT não foi gerado corretamente')
         
-        # Atualizar status: concluído
         jobs[job_id]['status'] = 'completed'
         jobs[job_id]['progress'] = 100
         jobs[job_id]['ppt_path'] = output_ppt
         jobs[job_id]['download_url'] = f'/download/{timestamp}'
         
-        print(f"[SUCESSO] [{job_id}] Job XML concluído com sucesso!")
+        app.logger.info(f"[{job_id}] Job concluído com sucesso")
         
     except Exception as e:
-        print(f"[ERRO] [{job_id}] Erro XML: {str(e)}")
+        app.logger.error(f"[{job_id}] Erro: {str(e)}", exc_info=True)
         jobs[job_id]['status'] = 'error'
         jobs[job_id]['error'] = str(e)
-
 
 def process_pdf_job(job_id, pdf_path, timestamp):
     """Processar job PDF (sistema legado)"""
     try:
-        print(f"[PDF] [{job_id}] Processando PDF (sistema legado)...")
-        
-        # Atualizar status: organizando
-        jobs[job_id]['status'] = 'organizing'
-        jobs[job_id]['progress'] = 30
-        
-        # (Manter lógica original do process_job para PDFs)
-        # ... implementar se necessário manter compatibilidade
-        
-        raise Exception("Sistema legado PDF não implementado. Use XML para o novo sistema SharePoint.")
+        app.logger.warning(f"[{job_id}] PDF não suportado")
+        raise Exception("Sistema legado PDF não implementado. Use XML.")
         
     except Exception as e:
-        print(f"[ERRO] [{job_id}] Erro PDF: {str(e)}")
+        app.logger.error(f"[{job_id}] Erro PDF: {str(e)}")
         jobs[job_id]['status'] = 'error'
         jobs[job_id]['error'] = str(e)
 
@@ -287,6 +330,8 @@ def download_ppt(timestamp):
         if not os.path.exists(ppt_path):
             return jsonify({'error': 'Arquivo não encontrado'}), 404
         
+        app.logger.info(f"Download iniciado: orcamento_{timestamp}.pptx")
+        
         return send_file(
             ppt_path,
             as_attachment=True,
@@ -295,23 +340,19 @@ def download_ppt(timestamp):
         )
     
     except Exception as e:
+        app.logger.error(f"Erro no download: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
 @app.route('/download_file/<filename>')
 def download_file(filename):
     """Download de arquivo específico pelo nome completo"""
     try:
-        # Sanitizar nome do arquivo para segurança
         filename = secure_filename(filename)
-        
-        # Caminho completo do arquivo
         file_path = os.path.join(UPLOAD_FOLDER, filename)
         
-        # Verificar se arquivo existe
         if not os.path.exists(file_path):
             return jsonify({'error': 'Arquivo não encontrado'}), 404
         
-        # Determinar mimetype baseado na extensão
         if filename.endswith('.pptx'):
             mimetype = 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
         elif filename.endswith('.pdf'):
@@ -327,15 +368,42 @@ def download_file(filename):
         )
     
     except Exception as e:
+        app.logger.error(f"Erro no download do arquivo: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
+# ==================== ERROR HANDLERS ====================
+
+@app.errorhandler(404)
+def not_found(error):
+    return jsonify({'error': 'Recurso não encontrado'}), 404
+
+@app.errorhandler(500)
+def internal_error(error):
+    app.logger.error(f"Erro interno: {str(error)}", exc_info=True)
+    return jsonify({'error': 'Erro interno do servidor'}), 500
+
+# ==================== STARTUP ====================
+
 if __name__ == '__main__':
-    # Criar pasta de upload se não existir
+    # Criar pastas necessárias
     os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+    os.makedirs(os.path.join(SCRIPT_DIR, 'logs'), exist_ok=True)
     
-    print("[SERVIDOR] Servidor Lucenera iniciado!")
-    print(f"[PASTA] Pasta de upload: {UPLOAD_FOLDER}")
-    print(f"[PYTHON] Python venv: {PYTHON_VENV}")
-    print("[WEB] Acesse: http://localhost:5001")
+    app.logger.info("=" * 60)
+    app.logger.info("SERVIDOR LUCENERA - PRODUÇÃO")
+    app.logger.info("=" * 60)
+    app.logger.info(f"Pasta de upload: {UPLOAD_FOLDER}")
+    app.logger.info(f"Python venv: {PYTHON_VENV}")
+    app.logger.info(f"Excel master: {EXCEL_MASTER}")
+    app.logger.info(f"Porta: {PORT}")
+    app.logger.info(f"Acesse: http://localhost:{PORT}")
+    app.logger.info(f"Público: https://apilucenera.site")
+    app.logger.info("=" * 60)
     
-    app.run(debug=True, host='0.0.0.0', port=5001)
+    # PRODUÇÃO: sem debug, multi-threaded
+    app.run(
+        debug=False,
+        host='0.0.0.0',
+        port=PORT,
+        threaded=True
+    )
