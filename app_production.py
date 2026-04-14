@@ -296,13 +296,84 @@ except Exception as e:
         jobs[job_id]['error'] = str(e)
 
 def process_pdf_job(job_id, pdf_path, timestamp):
-    """Processar job PDF (sistema legado)"""
+    """Processar job PDF (sistema reativado com SharePoint)"""
     try:
-        app.logger.warning(f"[{job_id}] PDF não suportado")
-        raise Exception("Sistema legado PDF não implementado. Use XML.")
+        app.logger.info(f"[PDF] [{job_id}] Processando PDF...")
+        
+        # Atualizar status: processando
+        jobs[job_id]['status'] = 'processing'
+        jobs[job_id]['progress'] = 30
+        
+        # Verificar se Excel master existe
+        if not os.path.exists(EXCEL_MASTER):
+            raise Exception(f'Excel master não encontrado: {EXCEL_MASTER}')
+        
+        # Atualizar status: gerando PPT
+        jobs[job_id]['status'] = 'generating'
+        jobs[job_id]['progress'] = 60
+        
+        # Preparar argumentos
+        output_ppt = os.path.join(UPLOAD_FOLDER, f'orcamento_{timestamp}.pptx')
+        
+        # Executar ppt.py com argumentos PDF
+        app.logger.info(f"[EXEC] [{job_id}] Executando ppt.py (PDF + SharePoint)...")
+        
+        # Criar script wrapper
+        wrapper_script = f"""
+import sys
+sys.path.append(r'{SCRIPT_DIR}')
+
+from ppt import gerar_powerpoint_pdf
+
+try:
+    resultado = gerar_powerpoint_pdf(
+        pdf_path=r'{pdf_path}',
+        excel_path=r'{EXCEL_MASTER}',
+        output_path=r'{output_ppt}'
+    )
+    print(f"[OK] Sucesso: {{resultado}}")
+except Exception as e:
+    print(f"[ERRO] Erro: {{str(e)}}")
+    raise
+"""
+        
+        wrapper_path = os.path.join(SCRIPT_DIR, f'wrapper_{job_id}.py')
+        with open(wrapper_path, 'w', encoding='utf-8') as f:
+            f.write(wrapper_script)
+        
+        try:
+            result = subprocess.run(
+                [PYTHON_VENV, wrapper_path],
+                capture_output=True,
+                text=True,
+                cwd=SCRIPT_DIR,
+                timeout=300
+            )
+            
+            if result.returncode != 0:
+                raise Exception(f'Erro na geração PPT de PDF: {result.stderr}')
+            
+            app.logger.info(f"[OK] [{job_id}] ppt.py executado")
+            app.logger.info(f"[OUTPUT] {result.stdout}")
+            
+        finally:
+            if os.path.exists(wrapper_path):
+                os.remove(wrapper_path)
+        
+        # Verificar se PPT foi gerado
+        if not os.path.exists(output_ppt):
+            raise Exception('PPT não foi gerado')
+        
+        # Atualizar status: concluído
+        jobs[job_id]['status'] = 'completed'
+        jobs[job_id]['progress'] = 100
+        jobs[job_id]['ppt_path'] = output_ppt
+        jobs[job_id]['download_url'] = f'/download/{timestamp}'
+        
+        app.logger.info(f"[SUCESSO] [{job_id}] Job PDF concluído!")
         
     except Exception as e:
-        app.logger.error(f"[{job_id}] Erro PDF: {str(e)}")
+        app.logger.error(f"[ERRO] [{job_id}] Erro PDF: {str(e)}")
         jobs[job_id]['status'] = 'error'
         jobs[job_id]['error'] = str(e)
 

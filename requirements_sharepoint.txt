@@ -19,6 +19,9 @@ Werkzeug==3.0.1
 # Geração de PowerPoint
 python-pptx==0.6.21
 
+# Processamento de PDF
+pdfplumber==0.10.3
+
 # Processamento de imagem (docx images)
 Pillow==10.0.1
 

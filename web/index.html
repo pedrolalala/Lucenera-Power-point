@@ -35,7 +35,7 @@
                     </button>
                     <button class="tab-button" data-tab="pdf">
                         <i class="fas fa-file-pdf"></i>
-                        PDF (Legado)
+                        PDF (SharePoint)
                     </button>
                 </div>
                 
@@ -88,22 +88,43 @@
                     <h2>Upload de Orçamento em PDF</h2>
                     <div class="system-info">
                         <div class="info-badge info-legacy">
-                            <i class="fas fa-archive"></i>
-                            SISTEMA LEGADO
+                            <i class="fas fa-file-pdf"></i>
+                            SISTEMA PDF
                         </div>
-                        <p>⚠️ Sistema antigo (descontinuado)</p>
-                        <p>📁 Usa arquivos locais</p>
-                        <p>🔄 Migre para XML + SharePoint</p>
+                        <p>✅ Extração automática de produtos</p>
+                        <p>✅ Busca no SharePoint por código</p>
+                        <p>✅ Geração automática de PowerPoint</p>
                     </div>
                     
                     <!-- Drag and Drop Area PDF -->
-                    <div class="drop-zone drop-zone-disabled">
+                    <div class="drop-zone" id="dropZonePdf">
                         <div class="drop-zone-content">
                             <i class="fas fa-file-pdf drop-icon"></i>
-                            <p class="drop-text">Sistema PDF temporariamente desabilitado</p>
-                            <p class="drop-subtext">Use o sistema XML para processamento</p>
+                            <p class="drop-text">Arraste o PDF aqui ou clique para selecionar</p>
+                            <p class="drop-subtext">Formatos aceitos: PDF (máx. 10MB)</p>
+                        </div>
+                        <input type="file" id="fileInputPdf" accept=".pdf" hidden>
+                    </div>
+
+                    <!-- File Info Display PDF -->
+                    <div class="file-info" id="fileInfoPdf" style="display: none;">
+                        <div class="file-details">
+                            <i class="fas fa-file-pdf file-icon"></i>
+                            <div class="file-text">
+                                <p class="file-name" id="fileNamePdf">Nenhum arquivo selecionado</p>
+                                <p class="file-size" id="fileSizePdf">0 KB</p>
+                            </div>
+                            <button class="remove-btn" id="removeBtnPdf" title="Remover arquivo">
+                                <i class="fas fa-times"></i>
+                            </button>
                         </div>
                     </div>
+
+                    <!-- Process Button PDF -->
+                    <button class="btn-process" id="processBtnPdf" disabled>
+                        <i class="fas fa-cogs"></i>
+                        Processar PDF
+                    </button>
                 </div>
 
                 <!-- Feedback Message -->
@@ -122,8 +143,8 @@
 
         <!-- Footer -->
         <footer class="footer">
-            <p>LUCENERA, Av. Nove de Julho 49, Ribeirão Preto (SP)</p>
-            <p><i class="fab fa-facebook"></i> www.facebook.com/luceneraatelier</p>
+            <p>LUCENERA - ATELIER DA LUZ</p>
+            <p>Sistema de Geração de Fichas Técnicas</p>
         </footer>
     </div>
 

@@ -329,6 +329,41 @@ class ExcelMaster:
             print(f"[ERRO] Erro ao buscar produto {codigo}: {str(e)}")
             return None
     
+    def buscar_marca_por_codigo(self, codigo: str) -> Optional[str]:
+        """
+        Busca marca/fabricante por código do produto
+        
+        Args:
+            codigo: Código do produto (interno ou referência)
+            
+        Returns:
+            Nome da marca/fabricante ou None se não encontrado
+        """
+        produto = self.buscar_produto_por_codigo(codigo)
+        if produto and produto.get('marca'):
+            return produto['marca']
+        
+        # Fallback: tentar busca direta na coluna marca
+        if self.df is not None:
+            try:
+                colunas_codigo = ['codigo', 'codigo_interno', 'ref', 'referencia']
+                colunas_marca = ['marca', 'fabricante', 'brand', 'manufacturer']
+                
+                for col_cod in colunas_codigo:
+                    if col_cod.lower() in [c.lower() for c in self.df.columns]:
+                        resultado = self.df[self.df[col_cod].astype(str).str.upper() == codigo.upper()]
+                        
+                        if not resultado.empty:
+                            for col_marca in colunas_marca:
+                                if col_marca.lower() in [c.lower() for c in self.df.columns]:
+                                    marca = resultado.iloc[0][col_marca]
+                                    if pd.notna(marca):
+                                        return str(marca).strip()
+            except Exception as e:
+                print(f"[AVISO] Erro ao buscar marca para {codigo}: {str(e)}")
+        
+        return None
+    
     def listar_marcas(self) -> List[str]:
         """Lista todas as marcas disponíveis no Excel"""
         if self.df is None:

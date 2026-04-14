@@ -12,6 +12,7 @@ import tempfile
 # Novos módulos para SharePoint e XML
 from sharepoint_client import SharePointClient
 from data_manager import DataManager
+from pdf_parser import extrair_produtos_do_pdf, validar_produtos
 
 # Configurações do novo sistema
 xml_orcamento = r"C:\Users\pedro\OneDrive\Desktop\lucenera\orcamento.xml"  # Será definido dinamicamente
@@ -89,6 +90,92 @@ def gerar_powerpoint_sharepoint(xml_path: str, excel_path: str, output_path: str
         
     except Exception as e:
         print(f"[ERRO] Erro ao gerar PowerPoint: {str(e)}")
+        raise
+
+
+def gerar_powerpoint_pdf(pdf_path: str, excel_path: str, output_path: str = None):
+    """
+    Gera PowerPoint a partir de PDF de orçamento usando SharePoint
+    
+    Args:
+        pdf_path: Caminho para arquivo PDF de orçamento
+        excel_path: Caminho para Excel master de produtos  
+        output_path: Caminho de saída (opcional)
+    
+    Returns:
+        Caminho do arquivo PowerPoint gerado
+    """
+    try:
+        print("[INICIO] Iniciando geração PowerPoint a partir de PDF...")
+        
+        # Extrair produtos do PDF
+        print("[PDF] Extraindo produtos do PDF...")
+        produtos_pdf = extrair_produtos_do_pdf(pdf_path)
+        validar_produtos(produtos_pdf)
+        
+        print(f"[OK] {len(produtos_pdf)} produtos extraídos do PDF!")
+        
+        # Carregar Excel master para enriquecer dados
+        print("[EXCEL] Carregando dados do Excel master...")
+        from data_manager import ExcelMaster
+        excel_master_obj = ExcelMaster(excel_path)
+        
+        # Enriquecer produtos com dados do Excel
+        produtos_enriquecidos = []
+        for p in produtos_pdf:
+            codigo = p['codigo']
+            
+            # Buscar marca no Excel
+            marca = excel_master_obj.buscar_marca_por_codigo(codigo)
+            if not marca:
+                marca = 'Interlight'  # Default
+            
+            # Criar produto enriquecido
+            produto = {
+                'lnum': p['item'].replace('L', '').replace('Item ', '').zfill(2),
+                'codigo': codigo,
+                'ref': p.get('referencia', codigo),
+                'marca': marca,
+                'preco': p.get('preco', ''),
+                'descricao': p.get('descricao', '')
+            }
+            
+            produtos_enriquecidos.append(produto)
+            print(f"  [PRODUTO] {produto['lnum']}: {codigo} - {marca} - {produto['ref']}")
+        
+        # Definir nome de saída
+        if output_path:
+            ppt_saida_final = output_path
+        else:
+            pdf_base = os.path.splitext(os.path.basename(pdf_path))[0]
+            ppt_saida_final = rf"C:\Users\pedro\OneDrive\Desktop\lucenera\Ficha_Tecnica_{pdf_base}.pptx"
+        
+        # Criar apresentação
+        prs = Presentation()
+        prs.slide_width = a4_width
+        prs.slide_height = a4_height
+        
+        # Slide de capa
+        criar_slide_capa(prs)
+        
+        # Processar cada produto
+        sp_client = SharePointClient()
+        for i, produto in enumerate(produtos_enriquecidos, 1):
+            print(f"[PROC] Processando produto {i}/{len(produtos_enriquecidos)}: L{produto.get('lnum', '?')} - {produto.get('codigo', '?')}")
+            
+            # Criar slides para o produto
+            criar_slides_produto(prs, produto, sp_client)
+        
+        # Salvar PowerPoint
+        prs.save(ppt_saida_final)
+        
+        print(f"[SUCESSO] PowerPoint gerado com sucesso a partir de PDF!")
+        print(f"[ARQUIVO] {ppt_saida_final}")
+        print(f"[TOTAL] {len(produtos_enriquecidos)} produtos processados")
+        return ppt_saida_final
+        
+    except Exception as e:
+        print(f"[ERRO] Erro ao gerar PowerPoint de PDF: {str(e)}")
         raise
 
 
