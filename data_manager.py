@@ -65,17 +65,23 @@ class OrçamentoParser:
                 desc_marca = item.find('desc_marca')  # Marca real do XML
                 
                 # Extrair código L (classificação/ambiente) - tentar vários nomes possíveis
-                classificacao = (item.find('classificacao') or 
-                               item.find('desc_classificacao') or 
-                               item.find('ambiente') or
-                               item.find('desc_ambiente') or
-                               item.find('local') or
-                               item.find('desc_local'))
+                # IMPORTANTE: Tentar cada campo e logar para debug
+                classificacao = None
+                for campo in ['desc_classificacao', 'classificacao', 'desc_ambiente', 'ambiente', 'desc_local', 'local']:
+                    temp = item.find(campo)
+                    if temp is not None:
+                        xml_logger.info(f"[DEBUG] Campo '{campo}' encontrado: {temp.text}")
+                        if temp.text and temp.text.strip():  # Verificar se não está vazio
+                            classificacao = temp
+                            xml_logger.info(f"[DEBUG] Usando campo '{campo}' com valor: {temp.text}")
+                            break
+                        else:
+                            xml_logger.info(f"[DEBUG] Campo '{campo}' está vazio, tentando próximo...")
                 
                 # DEBUG: Mostrar o que encontrou
-                xml_logger.info(f"[DEBUG] classificacao encontrado: {classificacao}")
+                xml_logger.info(f"[DEBUG] classificacao final encontrado: {classificacao}")
                 if classificacao is not None:
-                    xml_logger.info(f"[DEBUG] classificacao.text: {classificacao.text}")
+                    xml_logger.info(f"[DEBUG] classificacao.text final: {classificacao.text}")
                 
                 # Criar produto
                 codigo_produto_text = cod_produto.text if cod_produto is not None else ""
