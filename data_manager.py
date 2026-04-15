@@ -59,10 +59,22 @@ class OrçamentoParser:
                 preco_produto = item.find('preco_produto')
                 desc_marca = item.find('desc_marca')  # Marca real do XML
                 
+                # Extrair código L (classificação/ambiente) - tentar vários nomes possíveis
+                classificacao = (item.find('classificacao') or 
+                               item.find('desc_classificacao') or 
+                               item.find('ambiente') or
+                               item.find('desc_ambiente') or
+                               item.find('local') or
+                               item.find('desc_local'))
+                
                 # Criar produto
                 codigo_produto_text = cod_produto.text if cod_produto is not None else ""
                 desc_marca_text = desc_marca.text if desc_marca is not None else ""
                 desc_produto_text = desc_produto.text if desc_produto is not None else ""
+                classificacao_text = classificacao.text if classificacao is not None and classificacao.text else ""
+                
+                # Extrair número L da classificação (ex: "L06" ou "06" → "06")
+                lnum = self._extrair_codigo_l(classificacao_text)
                 
                 produto = {
                     "codigo": codigo_produto_text,
@@ -70,12 +82,17 @@ class OrçamentoParser:
                     "quantidade": qtd_produto.text if qtd_produto is not None else "1",
                     "preco": preco_produto.text if preco_produto is not None else "0.00",
                     "ref": referencia.text if referencia is not None else codigo_produto_text,  # Usar referência real
-                    "marca": desc_marca_text if desc_marca_text else self._determinar_marca(codigo_produto_text or "")
+                    "marca": desc_marca_text if desc_marca_text else self._determinar_marca(codigo_produto_text or ""),
+                    "lnum": lnum  # Código L (classificação/ambiente)
                 }
                 
                 # Log: Nome da empresa extraído do XML
                 empresa_xml = desc_marca_text if desc_marca_text else self._determinar_marca(codigo_produto_text or "")
                 xml_logger.info(f"Empresa extraída do XML para produto {codigo_produto_text}: '{empresa_xml}'")
+                
+                # Log: Código L extraído
+                if classificacao_text:
+                    print(f"[OK] Código L extraído: '{classificacao_text}' → L{lnum} (Produto: {codigo_produto_text})")
                 
                 produtos.append(produto)
                 descricao_truncada = desc_produto_text[:50] if desc_produto_text else ""  
@@ -89,6 +106,36 @@ class OrçamentoParser:
             raise Exception(f"Erro ao fazer parse do XML: {str(e)}")
         except Exception as e:
             raise Exception(f"Erro geral no parsing: {str(e)}")
+    
+    def _extrair_codigo_l(self, classificacao_text: str) -> str:
+        """
+        Extrai o código L da classificação/ambiente
+        
+        Args:
+            classificacao_text: Texto da classificação (ex: "L06", "06", "L48")
+            
+        Returns:
+            Código L formatado (ex: "06", "48") ou "01" se não encontrado
+        """
+        import re
+        
+        if not classificacao_text:
+            return "01"  # Default
+        
+        # Remover espaços
+        texto = classificacao_text.strip().upper()
+        
+        # Padrão 1: "L06", "L48" → extrair "06", "48"
+        match = re.search(r'L(\d+)', texto)
+        if match:
+            return match.group(1).zfill(2)  # Garantir 2 dígitos
+        
+        # Padrão 2: Apenas números "06", "6", "48" → usar direto
+        match = re.search(r'(\d+)', texto)
+        if match:
+            return match.group(1).zfill(2)
+        
+        return "01"  # Fallback
     
     def _determinar_marca(self, codigo_ref: str) -> str:
         """
