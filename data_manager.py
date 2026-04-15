@@ -52,9 +52,9 @@ class OrçamentoParser:
             # Procurar elementos Item (note o 'I' maiúsculo)
             for item in root.findall(".//Item"):
                 # DEBUG: Mostrar TODOS os campos do XML
-                print(f"[DEBUG XML] Campos disponíveis no Item:")
+                xml_logger.info(f"[DEBUG XML] Campos disponíveis no Item:")
                 for child in item:
-                    print(f"  - {child.tag}: {child.text}")
+                    xml_logger.info(f"  - {child.tag}: {child.text}")
                 
                 # Extrair subelementos
                 cod_produto = item.find('cod_produto')
@@ -73,9 +73,9 @@ class OrçamentoParser:
                                item.find('desc_local'))
                 
                 # DEBUG: Mostrar o que encontrou
-                print(f"[DEBUG] classificacao encontrado: {classificacao}")
+                xml_logger.info(f"[DEBUG] classificacao encontrado: {classificacao}")
                 if classificacao is not None:
-                    print(f"[DEBUG] classificacao.text: {classificacao.text}")
+                    xml_logger.info(f"[DEBUG] classificacao.text: {classificacao.text}")
                 
                 # Criar produto
                 codigo_produto_text = cod_produto.text if cod_produto is not None else ""
@@ -102,8 +102,10 @@ class OrçamentoParser:
                 
                 # Log: Código L extraído
                 if classificacao_text:
+                    xml_logger.info(f"[OK] Código L extraído: '{classificacao_text}' → L{lnum} (Produto: {codigo_produto_text})")
                     print(f"[OK] Código L extraído: '{classificacao_text}' → L{lnum} (Produto: {codigo_produto_text})")
                 else:
+                    xml_logger.warning(f"[AVISO] Nenhum código L encontrado para produto {codigo_produto_text}, usando default L{lnum}")
                     print(f"[AVISO] Nenhum código L encontrado para produto {codigo_produto_text}, usando default L{lnum}")
                 
                 produtos.append(produto)
