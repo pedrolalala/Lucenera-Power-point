@@ -205,7 +205,8 @@ def criar_slides_produto(prs, produto, sp_client):
     marca = produto.get('marca', 'Interlight')
     lnum = produto.get('lnum', '1')
     
-    print(f"  [PROC] Processando produto {lnum}: {marca} - Código: {codigo}")
+    print(f"  [DEBUG PPT] Produto recebido - lnum: '{lnum}', codigo: '{codigo}', ref: '{ref}'")
+    print(f"  [PROC] Processando produto L{lnum}: {marca} - Código: {codigo}")
     
     print(f"  [BUSCA_CODIGO] Buscando arquivos no SharePoint por código interno: {codigo}")
     
