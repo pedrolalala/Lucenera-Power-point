@@ -108,8 +108,8 @@ class OrçamentoParser:
                 
                 # Log: Código L extraído
                 if classificacao_text:
-                    xml_logger.info(f"[OK] Código L extraído: '{classificacao_text}' → L{lnum} (Produto: {codigo_produto_text})")
-                    print(f"[OK] Código L extraído: '{classificacao_text}' → L{lnum} (Produto: {codigo_produto_text})")
+                    xml_logger.info(f"[OK] Código L extraído: '{classificacao_text}' -> L{lnum} (Produto: {codigo_produto_text})")
+                    print(f"[OK] Código L extraído: '{classificacao_text}' -> L{lnum} (Produto: {codigo_produto_text})")
                 else:
                     xml_logger.warning(f"[AVISO] Nenhum código L encontrado para produto {codigo_produto_text}, usando default L{lnum}")
                     print(f"[AVISO] Nenhum código L encontrado para produto {codigo_produto_text}, usando default L{lnum}")
