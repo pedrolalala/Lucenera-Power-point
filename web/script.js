@@ -395,13 +395,12 @@ function updateJobUI(jobId, data) {
     progressFill.style.width = `${data.progress || 0}%`;
 
     // Atualizar status
-    if (data.status === 'completed' && data.ppt_path) {
+    if (data.status === 'completed' && data.download_url) {
         statusBadge.className = 'job-status success';
         statusBadge.textContent = '✅ Concluído';
         
-        const fileName = data.ppt_path.split('\\').pop().split('/').pop();
         jobElement.querySelector('.job-message').innerHTML = `
-            <a href="/download_file/${fileName}" class="job-download">
+            <a href="${data.download_url}" class="job-download" download>
                 <i class="fas fa-download"></i> Baixar PowerPoint
             </a>
         `;
