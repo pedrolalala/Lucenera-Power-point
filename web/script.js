@@ -394,6 +394,14 @@ function updateJobUI(jobId, data) {
     // Atualizar progresso
     progressFill.style.width = `${data.progress || 0}%`;
 
+    // DEBUG: Log dos dados recebidos
+    console.log('[DEBUG] Status recebido:', {
+        status: data.status,
+        progress: data.progress,
+        download_url: data.download_url,
+        ppt_path: data.ppt_path
+    });
+
     // Atualizar status
     if (data.status === 'completed' && data.download_url) {
         statusBadge.className = 'job-status success';
