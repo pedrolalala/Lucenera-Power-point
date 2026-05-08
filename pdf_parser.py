@@ -11,19 +11,52 @@ import logging
 logger = logging.getLogger(__name__)
 
 
+def extrair_marca_da_referencia(referencia: str) -> str:
+    """
+    Tenta identificar a marca baseado no prefixo da referência
+    
+    Exemplos:
+    - STH8536/30 -> STELLATECH (prefixo STH)
+    - STL24845/27 -> STELLATECH (prefixo STL)
+    - BL1074DR-BMPM -> Sem marca identificada
+    - EKPF32 -> EKLART (prefixo EK)
+    """
+    referencia_upper = referencia.upper()
+    
+    # Mapeamento de prefixos comuns
+    prefixos_marca = {
+        'STH': 'STELLATECH',
+        'STL': 'STELLATECH',
+        'EK': 'EKLART',
+        'LUC': 'LUCENERA',
+        'BL': 'INTERLIGHT',
+        'IL': 'ILUMINAR',
+        'EV': 'EVOLED',
+        'DS': 'DESSINE',
+        'DR': 'DRESSALL',
+        'AL': 'ALPERTONE'
+    }
+    
+    for prefixo, marca in prefixos_marca.items():
+        if referencia_upper.startswith(prefixo):
+            return marca
+    
+    return 'LUCENERA'  # Marca padrão se não identificar
+
+
 def extrair_produtos_do_pdf(pdf_path: str) -> List[Dict]:
     """
-    Extrai lista de produtos do PDF de orçamento
+    Extrai lista de produtos do PDF de orçamento Lucenera/Foco Iluminação
     
-    Procura por padrões como:
-    - L01  11261  EKF5196HL9068L  R$ 1.234,56
-    - Item: 11261 | Ref: EKF5196HL9068L | Preço: R$ 1.234,56
+    Estrutura esperada da tabela:
+    ID | Código | Referência | Descrição | Qtd. | Un. | Vl. Unit. | Vl. Total
+    L01 | 9923 | 3649-FE-S-PX | EMBUTIDO DE PISO... | 15 | UN | R$ 734,24 | R$ 11.013,60
     
     Args:
         pdf_path: Caminho do arquivo PDF
         
     Returns:
-        Lista de dicts com: {codigo, referencia, preco, descricao}
+        Lista de dicts com: {item, codigo, referencia, descricao, quantidade, unidade}
     """
     produtos = []
     
@@ -41,58 +74,50 @@ def extrair_produtos_do_pdf(pdf_path: str) -> List[Dict]:
                 
                 logger.info(f"[PDF] Processando página {page_num}")
                 
-                # Padrão 1: L0X  CODIGO  REFERENCIA  ...  R$ PREÇO
-                # Ex: L01  11261  EKF5196HL9068L  ...  R$ 1.234,56
-                pattern1 = r'L0(\d+)\s+(\d+)\s+([A-Z0-9\-]+).*?R\$\s*([\d.,]+)'
-                matches = re.finditer(pattern1, text, re.DOTALL)
+                # Dividir em linhas
+                lines = text.split('\n')
                 
-                for match in matches:
-                    item_num = match.group(1)
-                    codigo = match.group(2)
-                    referencia = match.group(3)
-                    preco = match.group(4)
+                for line in lines:
+                    # Padrão principal: L01 9923 3649-FE-S-PX DESCRIÇÃO... QTD UN
+                    # Captura: ID (L01-L99), Código Interno (4-6 dígitos), Referência (alfanumérico com hífens)
+                    pattern = r'^(L\d{2})\s+(\d{1,6})\s+([A-Z0-9\-/]+)\s+(.+?)\s+(\d+)\s+(UN|MT)\s+'
                     
-                    produtos.append({
-                        'item': f'L{item_num.zfill(2)}',
-                        'codigo': codigo,
-                        'referencia': referencia,
-                        'preco': preco,
-                        'descricao': f'Item L{item_num.zfill(2)}'
-                    })
+                    match = re.match(pattern, line.strip())
                     
-                    logger.info(f"[PDF] ✓ Encontrado L{item_num.zfill(2)}: {codigo} - {referencia} - R$ {preco}")
-                
-                # Padrão 2: Código mais flexível
-                # Ex: Código: 11261 | Referência: EKF5196HL9068L
-                pattern2 = r'(?:C[óo]digo|Item|Ref\.?|Cód\.?)[:.\s]*(\d{4,6})'
-                codigo_matches = re.finditer(pattern2, text, re.IGNORECASE)
-                
-                for match in codigo_matches:
-                    codigo = match.group(1)
-                    
-                    # Tentar encontrar referência próxima
-                    ref_pattern = r'(?:Ref\.?|Referência)[:.\s]*([A-Z0-9\-]{5,20})'
-                    ref_match = re.search(ref_pattern, text[match.end():match.end()+100], re.IGNORECASE)
-                    
-                    referencia = ref_match.group(1) if ref_match else codigo
-                    
-                    # Evitar duplicatas
-                    if not any(p['codigo'] == codigo for p in produtos):
-                        produtos.append({
-                            'item': f'Item {len(produtos)+1}',
-                            'codigo': codigo,
-                            'referencia': referencia,
-                            'preco': '',
-                            'descricao': ''
-                        })
+                    if match:
+                        item_id = match.group(1)  # L01, L02, etc.
+                        codigo_interno = match.group(2)  # 9923, 12895, etc.
+                        referencia = match.group(3)  # 3649-FE-S-PX, BL1074DR-BMPM, etc.
+                        descricao = match.group(4).strip()  # Descrição do produto
+                        quantidade = match.group(5)  # 15, 69, etc.
+                        unidade = match.group(6)  # UN, MT
                         
-                        logger.info(f"[PDF] ✓ Encontrado (padrão 2): {codigo} - {referencia}")
+                        # Limpar descrição (remover valores e caracteres extras)
+                        descricao = re.sub(r'R\$.*$', '', descricao).strip()
+                        
+                        produto = {
+                            'item': item_id,
+                            'codigo': codigo_interno,
+                            'referencia': referencia,
+                            'descricao': descricao,
+                            'quantidade': quantidade,
+                            'unidade': unidade,
+                            'marca': extrair_marca_da_referencia(referencia)
+                        }
+                        
+                        produtos.append(produto)
+                        
+                        logger.info(f"[PDF] ✓ {item_id}: Código {codigo_interno} | Ref {referencia} | {quantidade} {unidade}")
                 
             logger.info(f"[PDF] ✅ Total de produtos extraídos: {len(produtos)}")
             
-            # Log dos produtos encontrados
-            for p in produtos:
-                logger.info(f"[PDF]   - {p['item']}: {p['codigo']} ({p['referencia']})")
+            # Log resumido dos produtos encontrados
+            if produtos:
+                logger.info(f"[PDF] Resumo:")
+                for p in produtos[:5]:  # Mostrar apenas os primeiros 5
+                    logger.info(f"[PDF]   - {p['item']}: {p['referencia']} (Código: {p['codigo']})")
+                if len(produtos) > 5:
+                    logger.info(f"[PDF]   ... e mais {len(produtos)-5} produtos")
             
             return produtos
             

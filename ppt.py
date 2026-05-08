@@ -125,10 +125,13 @@ def gerar_powerpoint_pdf(pdf_path: str, excel_path: str, output_path: str = None
         for p in produtos_pdf:
             codigo = p['codigo']
             
-            # Buscar marca no Excel
-            marca = excel_master_obj.buscar_marca_por_codigo(codigo)
-            if not marca:
-                marca = 'Interlight'  # Default
+            # Buscar marca no Excel (se não veio do PDF)
+            if p.get('marca'):
+                marca = p['marca']  # Usar marca extraída do PDF
+            else:
+                marca = excel_master_obj.buscar_marca_por_codigo(codigo)
+                if not marca:
+                    marca = 'LUCENERA'  # Default
             
             # Criar produto enriquecido
             produto = {
@@ -136,12 +139,13 @@ def gerar_powerpoint_pdf(pdf_path: str, excel_path: str, output_path: str = None
                 'codigo': codigo,
                 'ref': p.get('referencia', codigo),
                 'marca': marca,
-                'preco': p.get('preco', ''),
+                'quantidade': p.get('quantidade', '1'),
+                'unidade': p.get('unidade', 'UN'),
                 'descricao': p.get('descricao', '')
             }
             
             produtos_enriquecidos.append(produto)
-            print(f"  [PRODUTO] {produto['lnum']}: {codigo} - {marca} - {produto['ref']}")
+            print(f"  [PRODUTO] {produto['lnum']}: {marca} - {codigo} - Ref: {produto['ref']} ({produto['quantidade']} {produto['unidade']})")
         
         # Definir nome de saída
         if output_path:
@@ -265,10 +269,12 @@ def criar_slides_produto(prs, produto, sp_client):
     # Adicionar especificações do SharePoint
     adicionar_especificacoes_sharepoint(slide_ficha, word_files, sp_client, produto)
     
-    # Criar slide de bula se disponível
+    # Criar slide para CADA bula disponível (suporte a múltiplas bulas)
     if bula_files:
-        print(f"  [BULA] Criando slide de bula...")
-        criar_slide_bula(prs, bula_files[0], lnum, sp_client)
+        print(f"  [BULA] {len(bula_files)} bula(s) encontrada(s)")
+        for idx, bula_file in enumerate(bula_files, 1):
+            print(f"  [BULA] Criando slide {idx}/{len(bula_files)}: {bula_file.get('name')}")
+            criar_slide_bula(prs, bula_file, lnum, sp_client)
 
 
 def adicionar_imagens_sharepoint(slide, word_files, image_files, sp_client, produto=None):

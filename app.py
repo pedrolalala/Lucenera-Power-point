@@ -339,6 +339,7 @@ def get_status(job_id):
         'status': job['status'],
         'progress': job['progress'],
         'filename': job['filename'],
+        'ppt_path': job.get('ppt_path'),
         'error': job.get('error'),
         'download_url': job.get('download_url')
     })
