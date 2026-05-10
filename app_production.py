@@ -268,7 +268,7 @@ except Exception as e:
                 capture_output=True,
                 text=True,
                 cwd=SCRIPT_DIR,
-                timeout=300
+                timeout=1200  # 20 minutos timeout (processamento SharePoint pesado)
             )
             
             if result.returncode != 0:
@@ -347,7 +347,7 @@ except Exception as e:
                 capture_output=True,
                 text=True,
                 cwd=SCRIPT_DIR,
-                timeout=300
+                timeout=1200  # 20 minutos timeout (processamento SharePoint pesado)
             )
             
             if result.returncode != 0:
