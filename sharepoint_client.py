@@ -9,7 +9,6 @@ import json
 import os
 import re
 import logging
-import traceback
 from typing import List, Dict, Optional, Tuple
 import io
 from PIL import Image
@@ -175,152 +174,119 @@ class SharePointClient:
     
     def search_files_by_code(self, codigo_interno: str) -> List[Dict]:
         """
-        Busca arquivos no SharePoint por CÓDIGO INTERNO com paginação completa
-        
-        MELHORIAS v2:
-        - Usa filtro server-side com $filter (startswith)
-        - Trata paginação completa (@odata.nextLink)
-        - Busca otimizada para códigos como 9923, 8223, etc.
+        Busca arquivos .docx no SharePoint por CÓDIGO INTERNO na pasta fixa
         
         Args:
-            codigo_interno: Código interno do produto (ex: "10289", "9923", "8223")
+            codigo_interno: Código interno do produto (ex: "10289", "10539")
             
         Returns:
-            Lista de arquivos encontrados com score de relevância
+            Lista de arquivos .docx encontrados com score de relevância
         """
         try:
             self.logger.info(f"🔍 Buscando arquivo para código interno: '{codigo_interno}'")
+            
+            # 1. Usar DRIVE ID específico (não precisa buscar site dinamicamente)
             self.logger.info(f"📂 Pasta fixa: {self.PASTA_FICHAS_UNICA}")
             
-            # PASSO 1: Buscar com filtro server-side (startswith)
-            # Isso retorna apenas arquivos que começam com o código
-            filter_query = f"startswith(name,'{codigo_interno}')"
-            search_endpoint = (
-                f"/drives/{self.DRIVE_ID_FICHAS_TECNICAS}/root:/{self.PASTA_FICHAS_UNICA}:/"
-                f"children?$filter={filter_query}&$top=999"
-            )
+            # 2. Carregar arquivos da pasta usando DRIVE_ID
+            search_endpoint = f"/drives/{self.DRIVE_ID_FICHAS_TECNICAS}/root:/{self.PASTA_FICHAS_UNICA}:/children"
             
-            self.logger.info(f"🔎 Filtro server-side: {filter_query}")
+            try:
+                result = self._make_graph_request(search_endpoint)
+                self.logger.info(f"✅ Pasta SharePoint carregada: {len(result.get('value', []))} itens encontrados")
+                
+            except Exception as e:
+                self.logger.error(f"❌ Erro ao carregar pasta SharePoint: {str(e)}")
+                return []
             
-            # PASSO 2: Carregar TODOS os resultados (com paginação)
-            todos_arquivos = []
-            next_link = search_endpoint
-            page_count = 0
-            
-            while next_link:
-                page_count += 1
-                try:
-                    if page_count == 1:
-                        result = self._make_graph_request(next_link.replace(self.graph_url, ''))
-                    else:
-                        # Para páginas seguintes, nextLink já vem completo
-                        token = self._get_access_token()
-                        headers = {"Authorization": f"Bearer {token}"}
-                        response = requests.get(next_link, headers=headers)
-                        result = response.json() if response.status_code == 200 else {}
-                    
-                    items = result.get('value', [])
-                    todos_arquivos.extend(items)
-                    
-                    self.logger.info(f"📄 Página {page_count}: {len(items)} itens carregados")
-                    
-                    # Verificar se há próxima página
-                    next_link = result.get('@odata.nextLink')
-                    
-                except Exception as e:
-                    self.logger.error(f"❌ Erro na página {page_count}: {str(e)}")
-                    break
-            
-            self.logger.info(f"✅ Total carregado: {len(todos_arquivos)} arquivos (filtrados por '{codigo_interno}')")
-            
-            # PASSO 3: Validar e classificar resultados
+            # 3. Filtrar arquivos relevantes (.docx para fichas, .jpg/.png/.pdf para bulas)
             EXTENSOES_VALIDAS = ['.docx', '.jpg', '.jpeg', '.png', '.pdf']
-            arquivos_encontrados = []
-            
-            for item in todos_arquivos:
+            arquivos_relevantes = []
+            for item in result.get("value", []):
                 nome = item.get("name", "")
                 nome_lower = nome.lower()
-                
-                # Validar extensão
-                if not any(nome_lower.endswith(ext) for ext in EXTENSOES_VALIDAS):
-                    continue
-                
-                nome_sem_ext = nome.rsplit('.', 1)[0]  # Remove extensão
-                
-                # ESTRATÉGIA DE MATCHING
-                score = 0
-                match_method = ""
-                
-                # 1. Match EXATO: "9923.docx" → nome_sem_ext = "9923"
-                if nome_sem_ext == codigo_interno:
-                    score = 100
-                    match_method = 'exato'
-                    
-                # 2. Match com UNDERSCORE: "9923_BULA_01.jpg" → começa com "9923_"
-                elif nome_sem_ext.startswith(f"{codigo_interno}_"):
-                    score = 95
-                    match_method = 'prefixo_underscore'
-                    
-                # 3. Match CASE INSENSITIVE
-                elif nome_sem_ext.upper() == codigo_interno.upper():
-                    score = 90
-                    match_method = 'exato_case_insensitive'
-                    
-                # 4. Match PARCIAL (contém o código)
-                elif codigo_interno in nome_sem_ext:
-                    score = 75
-                    match_method = 'parcial_contem'
-                    
-                else:
-                    # Arquivo retornado pelo filtro mas não bate com nossas regras
-                    score = 50
-                    match_method = 'filtro_server_side'
-                
-                # Criar entrada do arquivo
-                arquivo_info = {
-                    'name': nome,
-                    'id': item.get('id'),
-                    'download_url': item.get('@microsoft.graph.downloadUrl'),
-                    'web_url': item.get('webUrl'),
-                    'score': score,
-                    'match_method': match_method,
-                    'size': item.get('size', 0),
-                    'last_modified': item.get('lastModifiedDateTime'),
-                    'company_folder': self.PASTA_FICHAS_UNICA,
-                    'type': self._detectar_tipo_arquivo(nome),
-                    'is_bula': self._is_bula_file(nome)
-                }
-                
-                arquivos_encontrados.append(arquivo_info)
-                self.logger.info(
-                    f"🎯 Match ({match_method}, score={score}): {nome}"
-                )
+                if any(nome_lower.endswith(ext) for ext in EXTENSOES_VALIDAS):
+                    arquivos_relevantes.append(item)
             
-            # PASSO 4: Ordenar por relevância
+            self.logger.info(f"📄 {len(arquivos_relevantes)} arquivo(s) encontrados na pasta (docx/jpg/png/pdf)")
+            
+            # 4. Buscar match por código interno
+            arquivos_encontrados = []
+            for item in arquivos_relevantes:
+                nome = item.get("name", "")
+                nome_sem_ext = nome.rsplit('.', 1)[0]  # Remove extensão
+                nome_sem_ext_upper = nome_sem_ext.upper()
+                codigo_upper = codigo_interno.upper()
+                
+                # Match EXATO de código interno (10289.docx → "10289")
+                if nome_sem_ext == codigo_interno or nome_sem_ext_upper == codigo_upper:
+                    arquivo_info = {
+                        'name': nome,
+                        'id': item.get('id'),
+                        'download_url': item.get('@microsoft.graph.downloadUrl'),
+                        'web_url': item.get('webUrl'), 
+                        'score': 100,  # Match perfeito
+                        'match_method': 'codigo_interno_exato',
+                        'size': item.get('size', 0),
+                        'last_modified': item.get('lastModifiedDateTime'),
+                        'company_folder': self.PASTA_FICHAS_UNICA,
+                        'type': self._detectar_tipo_arquivo(nome),
+                        'is_bula': self._is_bula_file(nome)
+                    }
+                    
+                    arquivos_encontrados.append(arquivo_info)
+                    self.logger.info(f"🎯 Match EXATO encontrado: {nome} (código: {codigo_interno})")
+                
+                # Match por PREFIXO (8223_BULA_01.jpg → "8223")
+                elif nome_sem_ext_upper.startswith(codigo_upper + '_') or nome_sem_ext_upper.startswith(codigo_upper + '-'):
+                    arquivo_info = {
+                        'name': nome,
+                        'id': item.get('id'),
+                        'download_url': item.get('@microsoft.graph.downloadUrl'),
+                        'web_url': item.get('webUrl'),
+                        'score': 95,  # Match por prefixo (muito relevante)
+                        'match_method': 'codigo_interno_prefixo',
+                        'size': item.get('size', 0),
+                        'last_modified': item.get('lastModifiedDateTime'),
+                        'company_folder': self.PASTA_FICHAS_UNICA,
+                        'type': self._detectar_tipo_arquivo(nome),
+                        'is_bula': self._is_bula_file(nome)
+                    }
+                    
+                    arquivos_encontrados.append(arquivo_info)
+                    self.logger.info(f"🎯 Match PREFIXO encontrado: {nome} (código: {codigo_interno})")
+                    
+                # Match PARCIAL (código interno contido no nome)
+                elif codigo_interno in nome_sem_ext or codigo_upper in nome_sem_ext_upper:
+                    arquivo_info = {
+                        'name': nome,
+                        'id': item.get('id'),
+                        'download_url': item.get('@microsoft.graph.downloadUrl'),
+                        'web_url': item.get('webUrl'),
+                        'score': 75,  # Match parcial
+                        'match_method': 'codigo_interno_parcial',
+                        'size': item.get('size', 0),
+                        'last_modified': item.get('lastModifiedDateTime'),
+                        'company_folder': self.PASTA_FICHAS_UNICA,
+                        'type': self._detectar_tipo_arquivo(nome),
+                        'is_bula': self._is_bula_file(nome)
+                    }
+                    
+                    arquivos_encontrados.append(arquivo_info)
+                    self.logger.info(f"🎯 Match PARCIAL encontrado: {nome} (contém: {codigo_interno})")
+            
+            # 5. Ordenar por relevância (match exato primeiro)
             arquivos_encontrados.sort(key=lambda x: x['score'], reverse=True)
             
-            # PASSO 5: Log final
             if arquivos_encontrados:
-                self.logger.info(
-                    f"✅ {len(arquivos_encontrados)} arquivo(s) encontrado(s) para código '{codigo_interno}'"
-                )
-                # Mostrar top 5
-                for i, arq in enumerate(arquivos_encontrados[:5], 1):
-                    self.logger.info(
-                        f"   [{i}] {arq['name']} (score={arq['score']}, {arq['match_method']})"
-                    )
+                self.logger.info(f"✅ {len(arquivos_encontrados)} arquivo(s) relevante(s) para código '{codigo_interno}'")
             else:
-                self.logger.warning(
-                    f"⚠️ NENHUM arquivo encontrado para código '{codigo_interno}' "
-                    f"(mesmo com filtro server-side)"
-                )
+                self.logger.warning(f"⚠️ Nenhum arquivo encontrado para código '{codigo_interno}'")
             
             return arquivos_encontrados
             
         except Exception as e:
             self.logger.error(f"💥 Erro geral na busca: {str(e)}")
-            import traceback
-            self.logger.error(traceback.format_exc())
             return []
     
     def _detectar_tipo_arquivo(self, nome: str) -> str:
