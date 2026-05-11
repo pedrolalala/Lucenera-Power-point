@@ -215,18 +215,25 @@ class SharePointClient:
             for item in arquivos_relevantes:
                 nome = item.get("name", "")
                 nome_sem_ext = nome.rsplit('.', 1)[0]  # Remove extensão
-                nome_sem_ext_upper = nome_sem_ext.upper()
-                codigo_upper = codigo_interno.upper()
                 
-                # Match EXATO de código interno (10289.docx → "10289")
-                if nome_sem_ext == codigo_interno or nome_sem_ext_upper == codigo_upper:
+                # Extrair código do início do nome (antes de underscore ou espaço)
+                # Ex: "8223_BULA_01" → "8223", "9923" → "9923", "10289 - Descrição" → "10289"
+                codigo_extraido = nome_sem_ext.split('_')[0].split(' ')[0].split('-')[0].strip()
+                
+                # Match por código extraído (case-insensitive)
+                codigo_interno_upper = str(codigo_interno).upper()
+                codigo_extraido_upper = codigo_extraido.upper()
+                nome_sem_ext_upper = nome_sem_ext.upper()
+                
+                # Match EXATO - Código extraído corresponde ao código buscado
+                if codigo_extraido_upper == codigo_interno_upper:
                     arquivo_info = {
                         'name': nome,
                         'id': item.get('id'),
                         'download_url': item.get('@microsoft.graph.downloadUrl'),
                         'web_url': item.get('webUrl'), 
                         'score': 100,  # Match perfeito
-                        'match_method': 'codigo_interno_exato',
+                        'match_method': 'codigo_extraido_exato',
                         'size': item.get('size', 0),
                         'last_modified': item.get('lastModifiedDateTime'),
                         'company_folder': self.PASTA_FICHAS_UNICA,
@@ -235,17 +242,17 @@ class SharePointClient:
                     }
                     
                     arquivos_encontrados.append(arquivo_info)
-                    self.logger.info(f"🎯 Match EXATO encontrado: {nome} (código: {codigo_interno})")
-                
-                # Match por PREFIXO (8223_BULA_01.jpg → "8223")
-                elif nome_sem_ext_upper.startswith(codigo_upper + '_') or nome_sem_ext_upper.startswith(codigo_upper + '-'):
+                    self.logger.info(f"🎯 Match EXATO encontrado: {nome} (código extraído: {codigo_extraido})")
+                    
+                # Match PARCIAL - Nome completo sem extensão corresponde (ex: "10289" == "10289")
+                elif nome_sem_ext_upper == codigo_interno_upper:
                     arquivo_info = {
                         'name': nome,
                         'id': item.get('id'),
                         'download_url': item.get('@microsoft.graph.downloadUrl'),
                         'web_url': item.get('webUrl'),
-                        'score': 95,  # Match por prefixo (muito relevante)
-                        'match_method': 'codigo_interno_prefixo',
+                        'score': 95,  # Match nome completo
+                        'match_method': 'nome_completo_exato',
                         'size': item.get('size', 0),
                         'last_modified': item.get('lastModifiedDateTime'),
                         'company_folder': self.PASTA_FICHAS_UNICA,
@@ -254,26 +261,7 @@ class SharePointClient:
                     }
                     
                     arquivos_encontrados.append(arquivo_info)
-                    self.logger.info(f"🎯 Match PREFIXO encontrado: {nome} (código: {codigo_interno})")
-                    
-                # Match PARCIAL (código interno contido no nome)
-                elif codigo_interno in nome_sem_ext or codigo_upper in nome_sem_ext_upper:
-                    arquivo_info = {
-                        'name': nome,
-                        'id': item.get('id'),
-                        'download_url': item.get('@microsoft.graph.downloadUrl'),
-                        'web_url': item.get('webUrl'),
-                        'score': 75,  # Match parcial
-                        'match_method': 'codigo_interno_parcial',
-                        'size': item.get('size', 0),
-                        'last_modified': item.get('lastModifiedDateTime'),
-                        'company_folder': self.PASTA_FICHAS_UNICA,
-                        'type': self._detectar_tipo_arquivo(nome),
-                        'is_bula': self._is_bula_file(nome)
-                    }
-                    
-                    arquivos_encontrados.append(arquivo_info)
-                    self.logger.info(f"🎯 Match PARCIAL encontrado: {nome} (contém: {codigo_interno})")
+                    self.logger.info(f"🎯 Match NOME COMPLETO encontrado: {nome}")
             
             # 5. Ordenar por relevância (match exato primeiro)
             arquivos_encontrados.sort(key=lambda x: x['score'], reverse=True)
@@ -282,6 +270,14 @@ class SharePointClient:
                 self.logger.info(f"✅ {len(arquivos_encontrados)} arquivo(s) relevante(s) para código '{codigo_interno}'")
             else:
                 self.logger.warning(f"⚠️ Nenhum arquivo encontrado para código '{codigo_interno}'")
+                
+                # Debug: Mostrar amostra dos arquivos analisados (primeiros 5 apenas)
+                if arquivos_relevantes:
+                    self.logger.debug(f"📋 Amostra de arquivos analisados (primeiros 5):")
+                    for item in arquivos_relevantes[:5]:
+                        nome_debug = item.get("name", "")
+                        codigo_debug = nome_debug.rsplit('.', 1)[0].split('_')[0].split(' ')[0].split('-')[0].strip()
+                        self.logger.debug(f"   - {nome_debug} → código extraído: '{codigo_debug}'")
             
             return arquivos_encontrados
             
