@@ -4,9 +4,17 @@ Extrai informações de produtos do PDF de orçamento
 """
 
 import re
+import sys
 import pdfplumber
 from typing import List, Dict
 import logging
+
+# Configurar encoding UTF-8 para console Windows
+if sys.platform == 'win32':
+    try:
+        sys.stdout.reconfigure(encoding='utf-8')
+    except:
+        pass  # Se falhar, usar print() normal
 
 logger = logging.getLogger(__name__)
 
@@ -107,9 +115,9 @@ def extrair_produtos_do_pdf(pdf_path: str) -> List[Dict]:
                         
                         produtos.append(produto)
                         
-                        logger.info(f"[PDF] ✓ {item_id}: Código {codigo_interno} | Ref {referencia} | {quantidade} {unidade}")
+                        logger.info(f"[PDF] [OK] {item_id}: Código {codigo_interno} | Ref {referencia} | {quantidade} {unidade}")
                 
-            logger.info(f"[PDF] ✅ Total de produtos extraídos: {len(produtos)}")
+            logger.info(f"[PDF] [SUCESSO] Total de produtos extraídos: {len(produtos)}")
             
             # Log resumido dos produtos encontrados
             if produtos:
@@ -122,7 +130,7 @@ def extrair_produtos_do_pdf(pdf_path: str) -> List[Dict]:
             return produtos
             
     except Exception as e:
-        logger.error(f"[PDF] ❌ Erro ao extrair produtos: {str(e)}")
+        logger.error(f"[PDF] [ERRO] Erro ao extrair produtos: {str(e)}")
         raise Exception(f"Erro ao processar PDF: {str(e)}")
 
 
@@ -134,7 +142,7 @@ def validar_produtos(produtos: List[Dict]) -> bool:
     if len(produtos) == 0:
         raise Exception("PDF vazio ou formato não reconhecido")
     
-    logger.info(f"[PDF] ✅ Validação: {len(produtos)} produto(s) válido(s)")
+    logger.info(f"[PDF] [VALIDACAO] {len(produtos)} produto(s) válido(s)")
     return True
 
 
@@ -152,7 +160,7 @@ if __name__ == "__main__":
         produtos = extrair_produtos_do_pdf(pdf_path)
         validar_produtos(produtos)
         
-        print("\n✅ PRODUTOS EXTRAÍDOS:")
+        print("\n[SUCESSO] PRODUTOS EXTRAIDOS:")
         for p in produtos:
             print(f"  {p['item']}: Código {p['codigo']} | Ref {p['referencia']} | R$ {p['preco']}")
     else:

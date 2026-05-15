@@ -8,11 +8,19 @@ import msal
 import json
 import os
 import re
+import sys
 import logging
 from typing import List, Dict, Optional, Tuple
 import io
 from PIL import Image
 from dotenv import load_dotenv
+
+# Configurar encoding UTF-8 para console Windows
+if sys.platform == 'win32':
+    try:
+        sys.stdout.reconfigure(encoding='utf-8')
+    except:
+        pass  # Se falhar, usar logging normal
 
 # Carregar variáveis de ambiente do arquivo .env
 load_dotenv()
@@ -193,10 +201,10 @@ class SharePointClient:
             
             try:
                 result = self._make_graph_request(search_endpoint)
-                self.logger.info(f"✅ Pasta SharePoint carregada: {len(result.get('value', []))} itens encontrados")
+                self.logger.info(f"[OK] Pasta SharePoint carregada: {len(result.get('value', []))} itens encontrados")
                 
             except Exception as e:
-                self.logger.error(f"❌ Erro ao carregar pasta SharePoint: {str(e)}")
+                self.logger.error(f"[ERRO] Erro ao carregar pasta SharePoint: {str(e)}")
                 return []
             
             # 3. Filtrar arquivos relevantes (.docx para fichas, .jpg/.png/.pdf para bulas)
@@ -267,9 +275,9 @@ class SharePointClient:
             arquivos_encontrados.sort(key=lambda x: x['score'], reverse=True)
             
             if arquivos_encontrados:
-                self.logger.info(f"✅ {len(arquivos_encontrados)} arquivo(s) relevante(s) para código '{codigo_interno}'")
+                self.logger.info(f"[OK] {len(arquivos_encontrados)} arquivo(s) relevante(s) para código '{codigo_interno}'")
             else:
-                self.logger.warning(f"⚠️ Nenhum arquivo encontrado para código '{codigo_interno}'")
+                self.logger.warning(f"[AVISO] Nenhum arquivo encontrado para código '{codigo_interno}'")
                 
                 # Debug: Mostrar amostra dos arquivos analisados (primeiros 5 apenas)
                 if arquivos_relevantes:

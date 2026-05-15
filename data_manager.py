@@ -6,10 +6,18 @@ Versão atualizada com suporte a variáveis de ambiente (.env), sistema avançad
 import xml.etree.ElementTree as ET
 import pandas as pd
 import os
+import sys
 import logging
 from typing import List, Dict, Optional, Tuple
 from dotenv import load_dotenv
 from reference_extractor import ReferenceExtractor
+
+# Configurar encoding UTF-8 para console Windows
+if sys.platform == 'win32':
+    try:
+        sys.stdout.reconfigure(encoding='utf-8')
+    except:
+        pass  # Se falhar, usar print() normal
 
 # Carregar variáveis de ambiente
 load_dotenv()
@@ -725,20 +733,20 @@ class DataManager:
                 if 'LUMINARIA' in categoria or 'LUMINÁRIA' in categoria:
                     if mandante is None:
                         mandante = produto
-                        print(f"    ✓ MANDANTE identificado")
+                        print(f"    [OK] MANDANTE identificado")
                     else:
                         # Se já tem mandante, este vira componente
                         componentes.append(produto)
-                        print(f"    → Componente adicional")
+                        print(f"    -> Componente adicional")
                 else:
                     componentes.append(produto)
-                    print(f"    → Componente")
+                    print(f"    -> Componente")
             
             # Se não encontrou mandante, usar o primeiro produto
             if mandante is None and produtos_grupo:
                 mandante = produtos_grupo[0]
                 componentes = produtos_grupo[1:]
-                print(f"  ⚠️ Nenhuma LUMINARIA encontrada, usando primeiro item como mandante")
+                print(f"  [AVISO] Nenhuma LUMINARIA encontrada, usando primeiro item como mandante")
             
             # Criar estrutura do grupo
             grupo = {
