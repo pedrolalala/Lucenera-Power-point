@@ -351,41 +351,60 @@ class ExcelMaster:
             codigo: Código do produto (interno ou referência)
             
         Returns:
-            Informações do produto encontrado
+            Informações do produto encontrado (incluindo categoria)
         """
         if self.df is None:
             return None
         
         try:
-            # Buscar em diferentes colunas possíveis
-            colunas_busca = ['codigo', 'ref', 'referencia', 'codigo_interno', 'codigo_ref']
-            colunas_existentes = [col for col in colunas_busca if col.lower() in [c.lower() for c in self.df.columns]]
+            # Detectar nome das colunas (case-insensitive)
+            col_codigo = None
+            col_ref = None
+            col_marca = None
+            col_desc = None
+            col_categoria = None
             
-            for coluna in colunas_existentes:
-                # Busca exata
-                resultado = self.df[self.df[coluna].astype(str).str.upper() == codigo.upper()]
+            for col in self.df.columns:
+                col_lower = col.lower()
+                if 'codproduto' in col_lower or 'codigo' in col_lower:
+                    col_codigo = col
+                elif 'referencia' in col_lower or 'ref' in col_lower:
+                    col_ref = col
+                elif 'marca' in col_lower or 'descmarca' in col_lower:
+                    col_marca = col
+                elif 'descproduto' in col_lower or 'descricao' in col_lower:
+                    col_desc = col
+                elif 'desccategoria' in col_lower or 'categoria' in col_lower:
+                    col_categoria = col
+            
+            # Buscar por código
+            if col_codigo:
+                resultado = self.df[self.df[col_codigo].astype(str) == str(codigo)]
                 
                 if not resultado.empty:
                     produto = resultado.iloc[0]
                     return {
-                        "codigo": produto.get('codigo', ''),
-                        "ref": produto.get('ref', produto.get('referencia', '')),
-                        "marca": produto.get('marca', ''),
-                        "nome": produto.get('nome', produto.get('descricao', '')),
+                        "codigo": str(produto.get(col_codigo, '')) if col_codigo else '',
+                        "ref": str(produto.get(col_ref, '')) if col_ref and pd.notna(produto.get(col_ref)) else '',
+                        "marca": str(produto.get(col_marca, '')) if col_marca and pd.notna(produto.get(col_marca)) else '',
+                        "nome": str(produto.get(col_desc, '')) if col_desc and pd.notna(produto.get(col_desc)) else '',
+                        "categoria": str(produto.get(col_categoria, '')) if col_categoria and pd.notna(produto.get(col_categoria)) else '',
                         "ficha_tecnica": produto.get('ficha_tecnica', ''),
                         "manual_instalacao": produto.get('manual_instalacao', '')
                     }
+            
+            # Buscar por referência
+            if col_ref:
+                resultado = self.df[self.df[col_ref].astype(str).str.upper() == str(codigo).upper()]
                 
-                # Busca parcial (contém)
-                resultado_parcial = self.df[self.df[coluna].astype(str).str.upper().str.contains(codigo.upper(), na=False)]
-                
-                if not resultado_parcial.empty:
-                    produto = resultado_parcial.iloc[0]
+                if not resultado.empty:
+                    produto = resultado.iloc[0]
                     return {
-                        "codigo": produto.get('codigo', ''),
-                        "ref": produto.get('ref', produto.get('referencia', '')),
-                        "marca": produto.get('marca', ''),
-                        "nome": produto.get('nome', produto.get('descricao', '')),
+                        "codigo": str(produto.get(col_codigo, '')) if col_codigo else '',
+                        "ref": str(produto.get(col_ref, '')) if col_ref and pd.notna(produto.get(col_ref)) else '',
+                        "marca": str(produto.get(col_marca, '')) if col_marca and pd.notna(produto.get(col_marca)) else '',
+                        "nome": str(produto.get(col_desc, '')) if col_desc and pd.notna(produto.get(col_desc)) else '',
+                        "categoria": str(produto.get(col_categoria, '')) if col_categoria and pd.notna(produto.get(col_categoria)) else '',
                         "ficha_tecnica": produto.get('ficha_tecnica', ''),
                         "manual_instalacao": produto.get('manual_instalacao', '')
                     }
@@ -626,13 +645,20 @@ class DataManager:
         
     def processar_orcamento(self) -> List[Dict]:
         """
-        Processa orçamento completo integrando todas as fontes
+        Processa orçamento completo integrando todas as fontes e agrupando por código L
         
         Returns:
-            Lista de produtos enriquecidos com dados do Excel
+            Lista de grupos por código L, cada um com:
+            {
+                'lnum': 'LXX',
+                'mandante': {...},  # Produto LUMINARIA
+                'componentes': [...] # Outros produtos (LED, ACESSORIO, etc.)
+            }
         """
         # Parse do XML
         produtos_xml = self.orcamento_parser.parse_xml()
+        
+        print(f"[AGRUPAMENTO] Iniciando agrupamento de {len(produtos_xml)} produtos por código L...")
         
         # Enriquecer cada produto com dados do Excel
         produtos_enriquecidos = []
@@ -650,12 +676,81 @@ class DataManager:
                 **produto,  # Dados do XML
                 "marca": info_excel.get('marca', produto.get('marca', 'Interlight')) if info_excel else produto.get('marca', 'Interlight'),
                 "nome_produto": info_excel.get('nome', '') if info_excel else '',
+                "categoria": info_excel.get('categoria', '') if info_excel else '',
                 "excel_encontrado": bool(info_excel)
             }
             
             produtos_enriquecidos.append(produto_final)
         
-        return produtos_enriquecidos
+        # Agrupar por código L
+        grupos = self._agrupar_por_lnum(produtos_enriquecidos)
+        
+        print(f"[AGRUPAMENTO] {len(grupos)} grupos criados")
+        
+        return grupos
+    
+    def _agrupar_por_lnum(self, produtos: List[Dict]) -> List[Dict]:
+        """
+        Agrupa produtos pelo código L e identifica o item mandante (LUMINARIA)
+        
+        Args:
+            produtos: Lista de produtos enriquecidos
+            
+        Returns:
+            Lista de grupos: [{'lnum': 'L01', 'mandante': {...}, 'componentes': [...]}]
+        """
+        from collections import defaultdict
+        
+        # Agrupar por lnum
+        grupos_dict = defaultdict(list)
+        
+        for produto in produtos:
+            lnum = produto.get('lnum', '01')
+            grupos_dict[lnum].append(produto)
+        
+        # Criar estrutura de grupos com mandante
+        grupos_finais = []
+        
+        for lnum, produtos_grupo in sorted(grupos_dict.items()):
+            print(f"\n[GRUPO L{lnum}] {len(produtos_grupo)} produto(s)")
+            
+            # Identificar mandante (categoria LUMINARIA)
+            mandante = None
+            componentes = []
+            
+            for produto in produtos_grupo:
+                categoria = produto.get('categoria', '').upper()
+                print(f"  - {produto.get('codigo', '?')}: {categoria or 'SEM CATEGORIA'}")
+                
+                if 'LUMINARIA' in categoria or 'LUMINÁRIA' in categoria:
+                    if mandante is None:
+                        mandante = produto
+                        print(f"    ✓ MANDANTE identificado")
+                    else:
+                        # Se já tem mandante, este vira componente
+                        componentes.append(produto)
+                        print(f"    → Componente adicional")
+                else:
+                    componentes.append(produto)
+                    print(f"    → Componente")
+            
+            # Se não encontrou mandante, usar o primeiro produto
+            if mandante is None and produtos_grupo:
+                mandante = produtos_grupo[0]
+                componentes = produtos_grupo[1:]
+                print(f"  ⚠️ Nenhuma LUMINARIA encontrada, usando primeiro item como mandante")
+            
+            # Criar estrutura do grupo
+            grupo = {
+                'lnum': lnum,
+                'mandante': mandante,
+                'componentes': componentes,
+                'total_produtos': len(produtos_grupo)
+            }
+            
+            grupos_finais.append(grupo)
+        
+        return grupos_finais
 
 
 # Exemplo de uso

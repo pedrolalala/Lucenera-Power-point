@@ -36,6 +36,7 @@ a4_height = Inches(11.69)
 def gerar_powerpoint_sharepoint(xml_path: str, excel_path: str, output_path: str = None):
     """
     Gera PowerPoint a partir de XML usando dados do SharePoint
+    Agora com agrupamento por código L (um slide por grupo)
     
     Args:
         xml_path: Caminho para arquivo XML de orçamento
@@ -49,14 +50,14 @@ def gerar_powerpoint_sharepoint(xml_path: str, excel_path: str, output_path: str
         global data_manager
         data_manager = DataManager(xml_path, excel_path)
         
-        # Processar orçamento
+        # Processar orçamento (agora retorna GRUPOS por código L)
         print("[XML] Processando orçamento XML...")
-        produtos = data_manager.processar_orcamento()
+        grupos = data_manager.processar_orcamento()
         
-        if not produtos:
-            raise Exception("Nenhum produto encontrado no XML")
+        if not grupos:
+            raise Exception("Nenhum grupo encontrado no XML")
         
-        print(f"[OK] {len(produtos)} produtos encontrados!")
+        print(f"[OK] {len(grupos)} grupos encontrados (agrupados por código L)!")
         
         # Definir nome de saída
         if output_path:
@@ -73,19 +74,32 @@ def gerar_powerpoint_sharepoint(xml_path: str, excel_path: str, output_path: str
         # Slide de capa
         criar_slide_capa(prs)
         
-        # Processar cada produto
-        for i, produto in enumerate(produtos, 1):
-            print(f"[PROC] Processando produto {i}/{len(produtos)}: L{produto.get('lnum', '?')} - {produto.get('ref', '?')}")
+        # Processar cada GRUPO (código L)
+        for i, grupo in enumerate(grupos, 1):
+            lnum = grupo.get('lnum', '?')
+            mandante = grupo.get('mandante')
+            componentes = grupo.get('componentes', [])
+            total = grupo.get('total_produtos', 1)
             
-            # Criar slides para o produto
-            criar_slides_produto(prs, produto, sharepoint_client)
+            print(f"\n[GRUPO {i}/{len(grupos)}] L{lnum} - {total} produto(s)")
+            
+            if mandante:
+                print(f"  [MANDANTE] {mandante.get('codigo', '?')} - {mandante.get('categoria', 'SEM CATEGORIA')}")
+            
+            if componentes:
+                print(f"  [COMPONENTES] {len(componentes)} item(ns):")
+                for comp in componentes:
+                    print(f"    - {comp.get('codigo', '?')}: {comp.get('categoria', 'SEM CATEGORIA')}")
+            
+            # Criar slide para o GRUPO (usando mandante como base)
+            criar_slide_grupo(prs, grupo, sharepoint_client)
         
         # Salvar PowerPoint
         prs.save(ppt_saida_final)
         
-        print(f"[SUCESSO] PowerPoint gerado com sucesso!")
+        print(f"\n[SUCESSO] PowerPoint gerado com sucesso!")
         print(f"[ARQUIVO] {ppt_saida_final}")
-        print(f"[TOTAL] {len(produtos)} produtos processados")
+        print(f"[TOTAL] {len(grupos)} grupos processados (1 slide por grupo)")
         return ppt_saida_final
         
     except Exception as e:
@@ -195,8 +209,98 @@ def criar_slide_capa(prs):
         slide_capa.shapes.add_picture(logo_path, Inches(logo_left), Inches(logo_top), width=Inches(logo_width))
 
 
+def criar_slide_grupo(prs, grupo, sp_client):
+    """
+    Cria UM slide para um grupo completo (código L)
+    Usa o item MANDANTE para busca no SharePoint
+    Concatena componentes como texto adicional
+    
+    Args:
+        prs: Apresentação PowerPoint
+        grupo: Dicionário com {'lnum', 'mandante', 'componentes', 'total_produtos'}
+        sp_client: Cliente SharePoint
+    """
+    lnum = grupo.get('lnum', '1')
+    mandante = grupo.get('mandante')
+    componentes = grupo.get('componentes', [])
+    
+    if not mandante:
+        print(f"  [ERRO] Grupo L{lnum} sem item mandante!")
+        return
+    
+    # Dados do mandante
+    codigo_mandante = mandante.get('codigo', '')
+    ref_mandante = mandante.get('ref', '')
+    marca_mandante = mandante.get('marca', 'Interlight')
+    categoria_mandante = mandante.get('categoria', '')
+    
+    print(f"  [SLIDE] Criando slide para grupo L{lnum}")
+    print(f"    [MANDANTE] {codigo_mandante} - {categoria_mandante}")
+    
+    # Buscar arquivos no SharePoint pelo código do MANDANTE
+    print(f"  [BUSCA_SHAREPOINT] Código: {codigo_mandante}")
+    arquivos = sp_client.search_files_by_code(codigo_mandante)
+    
+    if not arquivos:
+        print(f"  [AVISO] Nenhum arquivo encontrado para código {codigo_mandante}")
+    else:
+        print(f"  [OK] {len(arquivos)} arquivo(s) encontrado(s)")
+    
+    # Separar arquivos por tipo
+    bula_files = [arq for arq in arquivos if arq.get('is_bula', False)]
+    word_files = [arq for arq in arquivos if not arq.get('is_bula', False) and arq.get('type') == 'word']
+    image_files = [arq for arq in arquivos if not arq.get('is_bula', False) and arq.get('type') == 'image']
+    
+    print(f"  [ARQUIVOS] {len(word_files)} ficha(s), {len(image_files)} imagem(ns), {len(bula_files)} bula(s)")
+    
+    # Criar slide de ficha técnica
+    slide_ficha = prs.slides.add_slide(prs.slide_layouts[6])
+    add_header(slide_ficha)
+    
+    # Título pequeno em preto abaixo do cabeçalho
+    tx_title = slide_ficha.shapes.add_textbox(Inches(0.5), Inches(1.3), Inches(3), Inches(0.4))
+    tf_title = tx_title.text_frame
+    tf_title.text = "LUMINÁRIA DE PROJETO"
+    tf_title.paragraphs[0].font.name = 'Calibri'
+    tf_title.paragraphs[0].font.size = Pt(12)
+    tf_title.paragraphs[0].font.bold = False
+    tf_title.paragraphs[0].font.color.rgb = RGBColor(0, 0, 0)
+    
+    # Número LXX grande em preto no canto superior direito
+    tx_lnum = slide_ficha.shapes.add_textbox(Inches(6.8), Inches(1.2), Inches(1), Inches(0.5))
+    tf_lnum = tx_lnum.text_frame
+    tf_lnum.text = f"L{lnum}"
+    tf_lnum.paragraphs[0].font.name = 'Calibri'
+    tf_lnum.paragraphs[0].font.size = Pt(36)
+    tf_lnum.paragraphs[0].font.bold = True
+    tf_lnum.paragraphs[0].font.color.rgb = RGBColor(0, 0, 0)
+    tf_lnum.paragraphs[0].alignment = PP_ALIGN.RIGHT
+    
+    # Linha contínua ANTES das fotos
+    line1 = slide_ficha.shapes.add_connector(MSO_CONNECTOR.STRAIGHT, Inches(0.5), Inches(2.0), Inches(7.77), Inches(2.0))
+    line1.line.color.rgb = RGBColor(0, 0, 0)
+    
+    # Adicionar imagens do SharePoint (do mandante)
+    adicionar_imagens_sharepoint(slide_ficha, word_files, image_files, sp_client, mandante)
+    
+    # Linha contínua DEPOIS das fotos
+    line2 = slide_ficha.shapes.add_connector(MSO_CONNECTOR.STRAIGHT, Inches(0.5), Inches(5.5), Inches(7.77), Inches(5.5))
+    line2.line.color.rgb = RGBColor(0, 0, 0)
+    
+    # Adicionar especificações do SharePoint (incluindo componentes)
+    adicionar_especificacoes_grupo(slide_ficha, word_files, sp_client, mandante, componentes)
+    
+    # Criar slide para CADA bula disponível (do mandante)
+    if bula_files:
+        print(f"  [BULA] {len(bula_files)} bula(s) encontrada(s)")
+        for idx, bula_file in enumerate(bula_files, 1):
+            print(f"  [BULA] Criando slide {idx}/{len(bula_files)}: {bula_file.get('name')}")
+            criar_slide_bula(prs, bula_file, lnum, sp_client)
+
+
 def criar_slides_produto(prs, produto, sp_client):
     """
+    [FUNÇÃO LEGADA - Mantida para compatibilidade com sistema PDF]
     Cria slides para um produto específico usando busca SIMPLIFICADA por código interno
     
     Args:
@@ -428,6 +532,107 @@ def adicionar_especificacoes_sharepoint(slide, word_files, sp_client, produto=No
             
     except Exception as e:
         print(f"  [ERRO] Erro ao adicionar especificações: {str(e)}")
+
+
+def adicionar_especificacoes_grupo(slide, word_files, sp_client, mandante, componentes):
+    """
+    Adiciona especificações técnicas do grupo ao slide
+    Concatena informações do mandante + componentes
+    
+    Args:
+        slide: Slide do PowerPoint
+        word_files: Arquivos Word do mandante
+        sp_client: Cliente SharePoint
+        mandante: Produto mandante
+        componentes: Lista de produtos componentes
+    """
+    try:
+        # Texto base do mandante
+        texto_specs = ""
+        
+        if word_files:
+            # Extrair texto do primeiro arquivo Word (mandante)
+            download_url = word_files[0]['download_url']
+            texto_specs = sp_client.get_word_text(download_url)
+        else:
+            # Fallback: informações do mandante
+            codigo = mandante.get('codigo', '')
+            ref = mandante.get('ref', '')
+            descricao = mandante.get('descricao', '')
+            marca = mandante.get('marca', '')
+            categoria = mandante.get('categoria', '')
+            
+            if ref and ref != codigo:
+                texto_specs = f"REFERÊNCIA: {ref}\n"
+                texto_specs += f"CÓDIGO INTERNO: {codigo}\n"
+            else:
+                texto_specs = f"CÓDIGO ORÇAMENTO: {codigo}\n"
+            
+            if marca:
+                texto_specs += f"MARCA: {marca}\n"
+            if categoria:
+                texto_specs += f"CATEGORIA: {categoria}\n"
+            if descricao:
+                texto_specs += f"DESCRIÇÃO: {descricao}\n"
+        
+        # Adicionar informações dos componentes
+        if componentes:
+            print(f"  [COMPONENTES] Adicionando {len(componentes)} componente(s) ao slide")
+            
+            # Separador visual
+            texto_specs += "\n" + "="*60 + "\n"
+            texto_specs += "COMPONENTES ADICIONAIS:\n"
+            texto_specs += "="*60 + "\n\n"
+            
+            for idx, comp in enumerate(componentes, 1):
+                codigo_comp = comp.get('codigo', '')
+                ref_comp = comp.get('ref', '')
+                desc_comp = comp.get('descricao', '')
+                categoria_comp = comp.get('categoria', '')
+                qtd_comp = comp.get('quantidade', '1')
+                
+                # Montar texto do componente
+                texto_comp = f"[{idx}] "
+                
+                if categoria_comp:
+                    texto_comp += f"{categoria_comp} - "
+                
+                if ref_comp and ref_comp != codigo_comp:
+                    texto_comp += f"Ref: {ref_comp} (Cód: {codigo_comp})"
+                else:
+                    texto_comp += f"Código: {codigo_comp}"
+                
+                if qtd_comp != '1':
+                    texto_comp += f" - Qtd: {qtd_comp}"
+                
+                if desc_comp:
+                    texto_comp += f"\n    {desc_comp}"
+                
+                texto_specs += texto_comp + "\n\n"
+                
+                print(f"    [{idx}] {codigo_comp}: {categoria_comp or 'SEM CATEGORIA'}")
+        
+        # Limitar tamanho do texto (máximo ~1000 caracteres para caber no slide)
+        if len(texto_specs) > 1000:
+            texto_specs = texto_specs[:1000] + "...\n\n[Texto truncado]"
+        
+        # Adicionar texto ao slide
+        tx_txt = slide.shapes.add_textbox(Inches(0.5), Inches(5.8), Inches(7.27), Inches(5.0))
+        tf_txt = tx_txt.text_frame
+        tf_txt.word_wrap = True
+        tf_txt.text = texto_specs
+        
+        # Formatação
+        for p in tf_txt.paragraphs:
+            p.font.name = 'Calibri'
+            p.font.size = Pt(11)  # Fonte menor para caber mais texto
+            
+            # Destacar títulos
+            if any(keyword in p.text for keyword in ['REFERÊNCIA:', 'CÓDIGO', 'COMPONENTES ADICIONAIS:', '====']):
+                p.font.bold = True
+                
+    except Exception as e:
+        print(f"  [ERRO] Erro ao adicionar especificações do grupo: {str(e)}")
 
 
 def criar_slide_bula(prs, bula_file, lnum, sp_client):
