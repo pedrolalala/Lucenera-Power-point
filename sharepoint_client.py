@@ -196,12 +196,46 @@ class SharePointClient:
             # 1. Usar DRIVE ID específico (não precisa buscar site dinamicamente)
             self.logger.info(f"📂 Pasta fixa: {self.PASTA_FICHAS_UNICA}")
             
-            # 2. Carregar arquivos da pasta usando DRIVE_ID
+            # 2. Carregar TODOS os arquivos da pasta usando DRIVE_ID (com paginação)
             search_endpoint = f"/drives/{self.DRIVE_ID_FICHAS_TECNICAS}/root:/{self.PASTA_FICHAS_UNICA}:/children"
             
             try:
-                result = self._make_graph_request(search_endpoint)
-                self.logger.info(f"[OK] Pasta SharePoint carregada: {len(result.get('value', []))} itens encontrados")
+                # Buscar todos os arquivos com paginação
+                all_items = []
+                next_link = search_endpoint
+                page_count = 0
+                
+                while next_link:
+                    page_count += 1
+                    
+                    # Fazer requisição (primeira página usa endpoint, próximas usam nextLink)
+                    if page_count == 1:
+                        result = self._make_graph_request(next_link)
+                    else:
+                        # nextLink já vem com URL completa, precisa extrair só o path
+                        if next_link.startswith('http'):
+                            # Extrair path da URL completa
+                            import urllib.parse
+                            parsed = urllib.parse.urlparse(next_link)
+                            path_and_query = parsed.path + ('?' + parsed.query if parsed.query else '')
+                            # Remover /v1.0 se existir
+                            if path_and_query.startswith('/v1.0'):
+                                path_and_query = path_and_query[5:]
+                            result = self._make_graph_request(path_and_query)
+                        else:
+                            result = self._make_graph_request(next_link)
+                    
+                    # Adicionar itens desta página
+                    items = result.get('value', [])
+                    all_items.extend(items)
+                    
+                    # Verificar se há próxima página
+                    next_link = result.get('@odata.nextLink')
+                    
+                    self.logger.info(f"[PAGINA {page_count}] {len(items)} itens carregados (total acumulado: {len(all_items)})")
+                
+                self.logger.info(f"[OK] Pasta SharePoint carregada completamente: {len(all_items)} itens em {page_count} página(s)")
+                result = {'value': all_items}  # Reconstrói result com todos os itens
                 
             except Exception as e:
                 self.logger.error(f"[ERRO] Erro ao carregar pasta SharePoint: {str(e)}")
