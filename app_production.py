@@ -456,24 +456,46 @@ def internal_error(error):
 # ==================== STARTUP ====================
 
 if __name__ == '__main__':
+    # Este arquivo não deve ser executado diretamente em produção!
+    # Use: python start_production.py
+    
+    print("=" * 70)
+    print("⚠️  AVISO: Você está executando app_production.py diretamente!")
+    print("=" * 70)
+    print()
+    print("Para PRODUÇÃO, use o servidor WSGI:")
+    print("   python start_production.py")
+    print()
+    print("Para DESENVOLVIMENTO, use:")
+    print("   python app.py")
+    print()
+    print("=" * 70)
+    print()
+    
+    import sys
+    resposta = input("Continuar com servidor de desenvolvimento? (s/N): ")
+    
+    if resposta.lower() != 's':
+        print("Abortado. Use 'python start_production.py' para produção.")
+        sys.exit(0)
+    
     # Criar pastas necessárias
     os.makedirs(UPLOAD_FOLDER, exist_ok=True)
     os.makedirs(os.path.join(SCRIPT_DIR, 'logs'), exist_ok=True)
     
     app.logger.info("=" * 60)
-    app.logger.info("SERVIDOR LUCENERA - PRODUÇÃO")
+    app.logger.info("SERVIDOR LUCENERA - MODO DESENVOLVIMENTO")
     app.logger.info("=" * 60)
     app.logger.info(f"Pasta de upload: {UPLOAD_FOLDER}")
     app.logger.info(f"Python venv: {PYTHON_VENV}")
     app.logger.info(f"Excel master: {EXCEL_MASTER}")
     app.logger.info(f"Porta: {PORT}")
     app.logger.info(f"Acesse: http://localhost:{PORT}")
-    app.logger.info(f"Público: https://apilucenera.site")
     app.logger.info("=" * 60)
     
-    # PRODUÇÃO: sem debug, multi-threaded
+    # Servidor de desenvolvimento (NÃO USAR EM PRODUÇÃO)
     app.run(
-        debug=False,
+        debug=True,  # Debug apenas em dev
         host='0.0.0.0',
         port=PORT,
         threaded=True

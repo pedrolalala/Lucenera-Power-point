@@ -16,6 +16,9 @@ xlrd>=2.0.0
 Flask==3.0.0
 Werkzeug==3.0.1
 
+# Servidor WSGI para produção (Windows-friendly)
+waitress==3.0.2
+
 # Geração de PowerPoint
 python-pptx==0.6.21
 
