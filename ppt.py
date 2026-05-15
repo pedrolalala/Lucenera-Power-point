@@ -1,5 +1,6 @@
 import os
 import re
+from typing import Optional, List, Dict
 from pptx import Presentation
 from pptx.util import Inches, Pt
 from pptx.dml.color import RGBColor
@@ -534,6 +535,101 @@ def adicionar_especificacoes_sharepoint(slide, word_files, sp_client, produto=No
         print(f"  [ERRO] Erro ao adicionar especificações: {str(e)}")
 
 
+def sanitizar_texto_word(texto_word: str, componentes: List[Dict], mandante: Optional[Dict] = None) -> str:
+    """
+    Sanitiza texto extraído do Word removendo informações técnicas que conflitam com XML.
+    
+    Regras de precedência:
+    - XML sempre tem prioridade sobre Word para especificações técnicas
+    - Remove parágrafos do Word que mencionam componentes presentes no XML
+    - Mantém informações gerais, dimensões, acabamentos, etc.
+    
+    Args:
+        texto_word: Texto extraído do arquivo Word do SharePoint
+        componentes: Lista de componentes do grupo (vindos do XML)
+        mandante: Produto mandante (opcional, para contexto adicional)
+    
+    Returns:
+        Texto sanitizado (sem conflitos técnicos)
+    """
+    try:
+        if not componentes:
+            # Sem componentes, não há conflito - retorna texto original
+            return texto_word
+        
+        # Mapear categorias presentes nos componentes XML
+        categorias_xml = set()
+        for comp in componentes:
+            categoria = comp.get('categoria', '').lower()
+            if categoria:
+                categorias_xml.add(categoria)
+        
+        # Palavras-chave mapeadas por categoria
+        palavras_por_categoria = {
+            'lâmpada': ['lâmpada', 'lampada', 'bulb', 'incandescente', 'halógena', 'halogena'],
+            'led': ['led', 'l.e.d', 'chip led', 'smd'],
+            'fita led': ['fita led', 'fita de led', 'strip led', 'led strip'],
+            'driver': ['driver', 'fonte', 'transformador', 'conversor'],
+            'reator': ['reator', 'ballast'],
+            'acessório': ['acessório', 'acessorio', 'suporte', 'conector', 'fixação', 'fixacao'],
+            'fonte': ['fonte', 'power supply', 'alimentação', 'alimentacao'],
+        }
+        
+        # Palavras-chave técnicas gerais (sempre verificar)
+        palavras_tecnicas_gerais = [
+            'potência', 'potencia', 'watts', 'w/', 'watt',
+            'lúmens', 'lumens', 'lm', 'fluxo luminoso',
+            'temperatura de cor', 'kelvin', 'k', '2700k', '3000k', '4000k', '6500k',
+            'voltagem', 'tensão', 'tensao', 'bivolt', '110v', '220v', '127v', '12v', '24v',
+            'ip', 'grau de proteção', 'protecao', 'ip20', 'ip44', 'ip65', 'ip67',
+            'irc', 'cri', 'índice de reprodução', 'indice de reproducao',
+        ]
+        
+        # Identificar palavras-chave a filtrar baseado nas categorias XML
+        palavras_filtrar = set()
+        for categoria in categorias_xml:
+            for key, palavras in palavras_por_categoria.items():
+                if key in categoria:
+                    palavras_filtrar.update(palavras)
+        
+        # Se há componentes técnicos (LED, Lâmpada, etc.), filtrar também especificações gerais
+        if any(cat in categorias_xml for cat in ['led', 'fita led', 'lâmpada', 'lampada', 'driver', 'fonte']):
+            palavras_filtrar.update(palavras_tecnicas_gerais)
+        
+        if not palavras_filtrar:
+            # Sem palavras para filtrar, retorna texto original
+            return texto_word
+        
+        # Processar texto linha por linha
+        linhas_originais = texto_word.split('\n')
+        linhas_sanitizadas = []
+        linhas_removidas = 0
+        
+        for linha in linhas_originais:
+            linha_lower = linha.lower()
+            
+            # Verificar se linha contém palavra-chave conflitante
+            tem_conflito = any(palavra in linha_lower for palavra in palavras_filtrar)
+            
+            if tem_conflito:
+                linhas_removidas += 1
+                print(f"  [SANITIZACAO] Removida linha: {linha[:60]}{'...' if len(linha) > 60 else ''}")
+            else:
+                linhas_sanitizadas.append(linha)
+        
+        texto_sanitizado = '\n'.join(linhas_sanitizadas)
+        
+        if linhas_removidas > 0:
+            print(f"  [SANITIZACAO] {linhas_removidas} linha(s) técnica(s) removida(s) para evitar conflito com XML")
+            print(f"  [SANITIZACAO] Categorias XML detectadas: {', '.join(categorias_xml)}")
+        
+        return texto_sanitizado
+        
+    except Exception as e:
+        print(f"  [ERRO] Erro ao sanitizar texto Word: {str(e)}")
+        return texto_word  # Em caso de erro, retorna texto original
+
+
 def adicionar_especificacoes_grupo(slide, word_files, sp_client, mandante, componentes):
     """
     Adiciona especificações técnicas do grupo ao slide
@@ -553,7 +649,17 @@ def adicionar_especificacoes_grupo(slide, word_files, sp_client, mandante, compo
         if word_files:
             # Extrair texto do primeiro arquivo Word (mandante)
             download_url = word_files[0]['download_url']
-            texto_specs = sp_client.get_word_text(download_url)
+            
+            # Usar filtro técnico se houver componentes no XML
+            filtrar_tecnico = len(componentes) > 0
+            texto_word_bruto = sp_client.get_word_text(download_url, filtrar_tecnico=filtrar_tecnico)
+            
+            # Aplicar sanitização adicional baseada nos componentes específicos
+            if componentes:
+                print(f"  [PRECEDENCIA] Aplicando sanitização - XML tem prioridade sobre Word")
+                texto_specs = sanitizar_texto_word(texto_word_bruto, componentes, mandante)
+            else:
+                texto_specs = texto_word_bruto
         else:
             # Fallback: informações do mandante
             codigo = mandante.get('codigo', '')
@@ -575,13 +681,13 @@ def adicionar_especificacoes_grupo(slide, word_files, sp_client, mandante, compo
             if descricao:
                 texto_specs += f"DESCRIÇÃO: {descricao}\n"
         
-        # Adicionar informações dos componentes
+        # Adicionar informações dos componentes (PRECEDÊNCIA: XML > Word)
         if componentes:
-            print(f"  [COMPONENTES] Adicionando {len(componentes)} componente(s) ao slide")
+            print(f"  [COMPONENTES] Adicionando {len(componentes)} componente(s) ao slide (dados do XML)")
             
             # Separador visual
             texto_specs += "\n" + "="*60 + "\n"
-            texto_specs += "COMPONENTES ADICIONAIS:\n"
+            texto_specs += "ESPECIFICAÇÕES TÉCNICAS (do Projeto):\n"
             texto_specs += "="*60 + "\n\n"
             
             for idx, comp in enumerate(componentes, 1):
@@ -590,27 +696,36 @@ def adicionar_especificacoes_grupo(slide, word_files, sp_client, mandante, compo
                 desc_comp = comp.get('descricao', '')
                 categoria_comp = comp.get('categoria', '')
                 qtd_comp = comp.get('quantidade', '1')
+                unidade_comp = comp.get('unidade', 'UN')
                 
-                # Montar texto do componente
+                # Montar texto do componente com mais detalhes
                 texto_comp = f"[{idx}] "
                 
                 if categoria_comp:
-                    texto_comp += f"{categoria_comp} - "
+                    texto_comp += f"{categoria_comp.upper()} - "
                 
                 if ref_comp and ref_comp != codigo_comp:
-                    texto_comp += f"Ref: {ref_comp} (Cód: {codigo_comp})"
+                    texto_comp += f"Ref: {ref_comp}"
+                    if codigo_comp:
+                        texto_comp += f" (Cód. Interno: {codigo_comp})"
                 else:
                     texto_comp += f"Código: {codigo_comp}"
                 
                 if qtd_comp != '1':
-                    texto_comp += f" - Qtd: {qtd_comp}"
+                    texto_comp += f" | Qtd: {qtd_comp} {unidade_comp}"
                 
                 if desc_comp:
-                    texto_comp += f"\n    {desc_comp}"
+                    # Limitar descrição a 100 caracteres por componente
+                    desc_curta = desc_comp[:100] + "..." if len(desc_comp) > 100 else desc_comp
+                    texto_comp += f"\n    → {desc_curta}"
                 
                 texto_specs += texto_comp + "\n\n"
                 
-                print(f"    [{idx}] {codigo_comp}: {categoria_comp or 'SEM CATEGORIA'}")
+                print(f"    [{idx}] {ref_comp or codigo_comp}: {categoria_comp or 'SEM CATEGORIA'} (Qtd: {qtd_comp})")
+            
+            # Nota sobre precedência
+            texto_specs += "\n" + "-"*60 + "\n"
+            texto_specs += "* Dados extraídos do orçamento XML (versão mais recente)\n"
         
         # Limitar tamanho do texto (máximo ~1000 caracteres para caber no slide)
         if len(texto_specs) > 1000:

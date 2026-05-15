@@ -418,9 +418,14 @@ class SharePointClient:
             print(f"[ERRO] Erro ao extrair imagens do Word: {str(e)}")
             return []
     
-    def get_word_text(self, word_file_url: str) -> str:
+    def get_word_text(self, word_file_url: str, filtrar_tecnico: bool = False) -> str:
         """
         Extrai texto de um arquivo Word do SharePoint
+        
+        Args:
+            word_file_url: URL do arquivo Word
+            filtrar_tecnico: Se True, remove parágrafos com especificações técnicas
+                           (Lâmpada, LED, Potência, etc.) para evitar conflitos com XML
         
         Returns:
             Texto das especificações técnicas
@@ -435,12 +440,40 @@ class SharePointClient:
             word_stream = io.BytesIO(content)
             doc = Document(word_stream)
             
-            # Extrair texto, filtrando linhas vazias e decorativas
+            # Palavras-chave técnicas a serem filtradas (case-insensitive)
+            palavras_tecnicas = [
+                'lâmpada', 'lampada', 'led', 'potência', 'potencia',
+                'acessórios', 'acessorios', 'fita led', 'driver',
+                'fonte', 'transformador', 'reator', 'watts', 'w/',
+                'lúmens', 'lumens', 'temperatura de cor', 'kelvin', 'k',
+                'voltagem', 'tensão', 'bivolt', '110v', '220v', '127v'
+            ]
+            
+            # Extrair texto, filtrando linhas vazias, decorativas e técnicas
             texto_paragrafos = []
+            paragrafos_removidos = 0
+            
             for paragrafo in doc.paragraphs:
                 texto = paragrafo.text.strip()
-                if texto and not all(c in '_-—–=' for c in texto):
-                    texto_paragrafos.append(texto)
+                
+                # Filtrar linhas vazias e decorativas
+                if not texto or all(c in '_-—–=' for c in texto):
+                    continue
+                
+                # Se filtro técnico ativado, verificar palavras-chave
+                if filtrar_tecnico:
+                    texto_lower = texto.lower()
+                    tem_palavra_tecnica = any(palavra in texto_lower for palavra in palavras_tecnicas)
+                    
+                    if tem_palavra_tecnica:
+                        paragrafos_removidos += 1
+                        self.logger.debug(f"[FILTRO_TECNICO] Removido parágrafo: {texto[:50]}...")
+                        continue
+                
+                texto_paragrafos.append(texto)
+            
+            if filtrar_tecnico and paragrafos_removidos > 0:
+                self.logger.info(f"[FILTRO_TECNICO] {paragrafos_removidos} parágrafo(s) técnico(s) removido(s)")
             
             # Juntar texto e limitar a 700 caracteres
             texto_completo = '\n'.join(texto_paragrafos)
